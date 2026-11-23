@@ -1,48 +1,44 @@
 import React from 'react';
+import { titleCase } from '../utils/format';
 
-export const StatusBadge = ({ status = 'unknown', label, size = 'sm' }) => {
-  const norm = String(status).toLowerCase();
+const TONES = {
+  success: 'border-ok/40 bg-ok/10 text-ok',
+  danger: 'border-danger/40 bg-danger/10 text-danger',
+  warning: 'border-warn/40 bg-warn/10 text-warn',
+  info: 'border-info/40 bg-info/10 text-info',
+  brand: 'border-brand/40 bg-brand/10 text-brand',
+  neutral: 'border-line bg-raised text-muted',
+};
 
-  let colorClasses = 'bg-slate-800/80 text-slate-300 border-slate-700';
-  let dotColor = '#94a3b8';
+// One place that decides how every status / severity in the platform looks.
+const STATUS_TONE = {
+  // severities
+  CRITICAL: 'danger', HIGH: 'warning', MEDIUM: 'info', LOW: 'neutral',
+  // incidents
+  OPEN: 'danger', ACKNOWLEDGED: 'warning', IN_PROGRESS: 'info', RESOLVED: 'success', CLOSED: 'neutral',
+  // findings
+  REMEDIATION_PENDING: 'info', ACCEPTED_RISK: 'neutral',
+  // remediation
+  PENDING_APPROVAL: 'warning', APPROVED: 'info', REJECTED: 'neutral', QUEUED: 'info', RUNNING: 'brand',
+  VERIFYING: 'brand', SUCCEEDED: 'success', FAILED: 'danger', CANCELLED: 'neutral',
+  // scans / audit / generic
+  COMPLETED: 'success', SUCCESS: 'success', FAILURE: 'danger', DENIED: 'warning',
+  UP: 'success', DOWN: 'danger', UNKNOWN: 'neutral', FIRING: 'danger', PENDING: 'warning',
+  ADMIN: 'brand', OPERATOR: 'info', ACTIVE: 'success', INACTIVE: 'neutral',
+};
 
-  if (['healthy', 'resolved', 'succeeded', 'success'].includes(norm)) {
-    colorClasses = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
-    dotColor = '#10b981';
-  } else if (['critical', 'unhealthy', 'failed'].includes(norm)) {
-    colorClasses = 'bg-rose-500/15 text-rose-400 border-rose-500/30 font-semibold';
-    dotColor = '#f43f5e';
-  } else if (['high'].includes(norm)) {
-    colorClasses = 'bg-orange-500/15 text-orange-400 border-orange-500/30';
-    dotColor = '#f97316';
-  } else if (['degraded', 'acknowledged', 'medium', 'warning'].includes(norm)) {
-    colorClasses = 'bg-amber-500/15 text-amber-300 border-amber-500/30';
-    dotColor = '#f59e0b';
-  } else if (['low'].includes(norm)) {
-    colorClasses = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-    dotColor = '#3b82f6';
-  } else if (['pending', 'approved', 'executing'].includes(norm)) {
-    colorClasses = 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30 animate-pulse';
-    dotColor = '#818cf8';
-  }
+export function toneFor(status) {
+  return STATUS_TONE[String(status || '').toUpperCase()] || 'neutral';
+}
 
-  const padding = size === 'xs' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-1 text-xs';
-
+export function StatusBadge({ status, label, tone, icon: Icon, className = '' }) {
+  const resolved = tone || toneFor(status);
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        borderRadius: '9999px',
-        border: '1px solid',
-        fontWeight: 500,
-        textTransform: 'capitalize',
-      }}
-      className={`${colorClasses} ${padding}`}
-    >
-      <span className="pulse-dot" style={{ backgroundColor: dotColor, color: dotColor }} />
-      {label || status}
+    <span className={`badge ${TONES[resolved] || TONES.neutral} ${className}`}>
+      {Icon ? <Icon size={12} aria-hidden="true" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />}
+      {label || titleCase(status || 'unknown')}
     </span>
   );
-};
+}
+
+export default StatusBadge;
