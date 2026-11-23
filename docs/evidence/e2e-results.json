@@ -1,0 +1,379 @@
+{
+  "started_at": "2026-11-23T10:41:36.067895+00:00",
+  "finished_at": "2026-11-23T10:48:07.818028+00:00",
+  "base_url": "http://localhost:8080",
+  "version": "2.0.0",
+  "environment": "development",
+  "passed": 55,
+  "failed": 0,
+  "measurements": {
+    "remediation_execution_seconds_ACTION_002": {
+      "value": 4.4,
+      "unit": "s (dispatch -> verified result, 1 s polling)"
+    },
+    "outage_to_target_down_seconds": {
+      "value": 5.4,
+      "unit": "s"
+    },
+    "alert_to_incident_seconds": {
+      "value": 37.5,
+      "unit": "s (fault injection -> incident visible; rule 'for' 15 s + group_wait 5 s)"
+    },
+    "repeat_notification_after_seconds": {
+      "value": 122,
+      "unit": "s (Alertmanager repeat_interval is 120 s)"
+    },
+    "remediation_execution_seconds_ACTION_001": {
+      "value": 20.4,
+      "unit": "s (dispatch -> verified result, includes waiting for the alert to clear)"
+    },
+    "application_recovery_seconds": {
+      "value": 0.31,
+      "unit": "s (worker start -> recovery call completed)"
+    },
+    "assistant_mode": {
+      "value": "documentation",
+      "unit": "(ai = live Gemini, documentation = fallback)"
+    },
+    "assistant_in_scope_answered": {
+      "value": "9/9",
+      "unit": "specification's allowed examples"
+    },
+    "assistant_out_of_scope_refused": {
+      "value": "6/6",
+      "unit": "specification's disallowed examples"
+    }
+  },
+  "checks": [
+    {
+      "demo": "SETUP",
+      "check": "1. Login as Administrator and Operator",
+      "result": "PASS",
+      "detail": "tokens issued"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "1. Reset insecure sample configuration (performed by the worker)",
+      "result": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "2. Operator runs a security scan",
+      "result": "PASS",
+      "detail": "scan #8 COMPLETED"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "3. All five rules detected (SEC-001..SEC-005)",
+      "result": "PASS",
+      "detail": "{'SEC-001': 1, 'SEC-002': 1, 'SEC-003': 1, 'SEC-004': 1, 'SEC-005': 1}"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "3b. Findings are persisted without duplicates",
+      "result": "PASS",
+      "detail": "5 findings, 5 unresolved"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "4. SEC-001 finding shows evidence, impact and an automated action",
+      "result": "PASS",
+      "detail": "Bucket allows public access (public_access = true, acl = public-read)."
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "4b. Findings without automation still give manual steps",
+      "result": "PASS",
+      "detail": "Automated correction is not implemented for SEC-003; apply the recommended change manually and run the scan again."
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "5. Operator requests remediation -> PENDING_APPROVAL",
+      "result": "PASS",
+      "detail": "request #3 PENDING_APPROVAL"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "5b. Operator approval attempt -> HTTP 403 and no state change",
+      "result": "PASS",
+      "detail": "HTTP 403, status PENDING_APPROVAL"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "5c. Execution before approval is refused",
+      "result": "PASS",
+      "detail": "HTTP 409"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "6. Administrator approves -> APPROVED",
+      "result": "PASS",
+      "detail": "APPROVED"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "6b. Nothing is changed by approval alone",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "7. Administrator dispatches -> QUEUED for the restricted worker",
+      "result": "PASS",
+      "detail": "QUEUED"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "7b. Worker executes and verifies -> SUCCEEDED",
+      "result": "PASS",
+      "detail": "SUCCEEDED after 2.3s"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "7c. Configuration file was really corrected",
+      "result": "PASS",
+      "detail": "['public_access: false', 'acl: private']"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "7d. Only the affected lines differ in the file",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "8. Verification re-ran the scanner",
+      "result": "PASS",
+      "detail": "{'security_rescan': True, 'rule_not_detected': True, 'finding_resolved_by_scan': True}"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "9. SEC-001 finding is RESOLVED by the scan (not deleted)",
+      "result": "PASS",
+      "detail": "RESOLVED"
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "9b. The other four findings are still OPEN",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 2 - Security misconfiguration",
+      "check": "10. Audit history shows the whole workflow under one correlation ID",
+      "result": "PASS",
+      "detail": "['FINDING_REMEDIATION_PENDING', 'REMEDIATION_REQUESTED', 'REMEDIATION_APPROVED', 'REMEDIATION_QUEUED', 'REMEDIATION_EXECUTION_STARTED', 'REMEDIATION_EXECUTED', 'SECURITY_SCAN_COMPLETED', 'REMEDIATION_VERIFICATION_PASSED', 'REMEDIATION_SUCCEEDED']"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "2. Monitoring shows the application healthy (live Prometheus data)",
+      "result": "PASS",
+      "detail": "request_rate=2.07 req/s"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "3. Administrator injects a controlled outage",
+      "result": "PASS",
+      "detail": "HTTP 200"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "4. Actual monitoring signal changes (scrape target DOWN)",
+      "result": "PASS",
+      "detail": "after 5.4s"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "5/6. Prometheus alert reaches the webhook and an incident is generated",
+      "result": "PASS",
+      "detail": "Demo application is unavailable"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "6b. Incident is labelled as a simulated demo fault",
+      "result": "PASS",
+      "detail": "Controlled demo fault 'outage' was active when this alert fired."
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "6c. Incident has severity CRITICAL, status OPEN and action ACTION-001",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "3. Live-incident question uses authorised live data",
+      "result": "PASS",
+      "detail": "mode=fallback tools=['get_monitoring_summary', 'get_authorized_open_incidents']"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "3b. Incident-specific question retrieves that incident",
+      "result": "PASS",
+      "detail": "mode=fallback"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "6d. Operator acknowledges the incident",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "6e. Resolving is refused while the alert is still firing",
+      "result": "PASS",
+      "detail": "Monitoring still reports this alert as firing. The incident can only be resolved once the condition has cleared."
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "C0. Exactly one notification was recorded for the new incident",
+      "result": "PASS",
+      "detail": "notifications=1"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "C. Repeated notification updates the existing incident (no duplicate)",
+      "result": "PASS",
+      "detail": "notifications=2, active incidents for this alert=1 (waited 122s)"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "7. Operator requests remediation -> PENDING_APPROVAL",
+      "result": "PASS",
+      "detail": "PENDING_APPROVAL"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "7b. Requesting remediation does not resolve the incident",
+      "result": "PASS",
+      "detail": "ACKNOWLEDGED"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "6. Privileged instruction is refused and nothing changes",
+      "result": "PASS",
+      "detail": "scope=privileged_action request=PENDING_APPROVAL"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "3c. 'Show my pending remediation' returns the real request",
+      "result": "PASS",
+      "detail": "mode=fallback"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "8. Administrator approves -> APPROVED",
+      "result": "PASS",
+      "detail": "APPROVED"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "9. Administrator dispatches the recovery to the worker",
+      "result": "PASS",
+      "detail": "QUEUED"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "9b. Worker recovers the application; request SUCCEEDED after verification",
+      "result": "PASS",
+      "detail": "SUCCEEDED after 18s"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "10. Verification used fresh health checks and Prometheus observations",
+      "result": "PASS",
+      "detail": "{'application_health': True, 'prometheus_target_up': True, 'alert_cleared': True}"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "11. Incident is RESOLVED with verification evidence",
+      "result": "PASS",
+      "detail": "Resolved by remediation request #4 (ACTION-001). Recovery verified by fresh health checks and Prometheus observations."
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "11b. Monitoring shows the application healthy again",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "12. Audit history covers request, approval, execution, verification and resolution",
+      "result": "PASS",
+      "detail": "['REMEDIATION_REQUESTED', 'REMEDIATION_APPROVED', 'REMEDIATION_QUEUED', 'REMEDIATION_EXECUTION_STARTED', 'REMEDIATION_EXECUTED', 'REMEDIATION_VERIFICATION_PASSED', 'INCIDENT_RESOLVED', 'REMEDIATION_SUCCEEDED']"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "12a. Alertmanager delivered every webhook notification successfully",
+      "result": "PASS",
+      "detail": "failed deliveries during the run: 0"
+    },
+    {
+      "demo": "DEMO 1 - Application failure and recovery",
+      "check": "12b. Administrator closes the incident after review",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "1. Assistant status and welcome message are served",
+      "result": "PASS",
+      "detail": "mode=documentation provider=gemini model=gemini-3.5-flash-lite"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "2. Documentation question is answered from the knowledge base",
+      "result": "PASS",
+      "detail": "mode=fallback"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "4. Remediation guidance question",
+      "result": "PASS",
+      "detail": "mode=fallback"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "2b. Allowed example questions are all answered",
+      "result": "PASS",
+      "detail": "7/7"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "5. Unrelated questions get the exact out-of-scope refusal",
+      "result": "PASS",
+      "detail": "6/6"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "6b. Secret request is refused and no secret appears",
+      "result": "PASS",
+      "detail": "secret_request"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "6c. Prompt injection is refused",
+      "result": "PASS",
+      "detail": "prompt_injection"
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "7. Missing Gemini configuration -> documentation fallback works",
+      "result": "PASS",
+      "detail": "Live AI generation is not configured on this server (no Gemini API key)."
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "7b. Platform keeps operating regardless of the AI provider",
+      "result": "PASS",
+      "detail": ""
+    },
+    {
+      "demo": "DEMO 3 - VigilAI",
+      "check": "9. Per-user request rate limiting (HTTP 429)",
+      "result": "PASS",
+      "detail": "10 accepted, 4 rate limited"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "run_at": "2026-11-23T11:02:13.834898+00:00",
+  "results": [
+    {
+      "fault": "errors",
+      "alert": "HighHttp5xxErrorRate",
+      "incident_opened": true,
+      "fault_to_incident_seconds": 65.3,
+      "severity": "HIGH",
+      "labelled_simulated": true,
+      "observed_metric": {
+        "name": "error_rate_5xx",
+        "value": 0.6782608695652175,
+        "unit": "ratio"
+      },
+      "auto_resolved_by_monitoring": true,
+      "clear_to_resolved_seconds": 59.9,
+      "resolution_summary": "Resolved automatically: monitoring reported that the alert condition cleared."
+    },
+    {
+      "fault": "latency",
+      "alert": "HighApiLatency",
+      "incident_opened": true,
+      "fault_to_incident_seconds": 57.2,
+      "severity": "MEDIUM",
+      "labelled_simulated": true,
+      "observed_metric": {
+        "name": "latency_p95",
+        "value": 1.9187500000000002,
+        "unit": "seconds"
+      },
+      "auto_resolved_by_monitoring": true,
+      "clear_to_resolved_seconds": 60.1,
+      "resolution_summary": "Resolved automatically: monitoring reported that the alert condition cleared."
+    },
+    {
+      "fault": "cpu",
+      "alert": "HighCpuUsage",
+      "incident_opened": true,
+      "fault_to_incident_seconds": 93.9,
+      "severity": "HIGH",
+      "labelled_simulated": true,
+      "observed_metric": {
+        "name": "cpu_usage",
+        "value": 0.9397388806051569,
+        "unit": "cores"
+      },
+      "auto_resolved_by_monitoring": true,
+      "clear_to_resolved_seconds": 29.6,
+      "resolution_summary": "Resolved automatically: monitoring reported that the alert condition cleared."
+    },
+    {
+      "fault": "memory",
+      "alert": "HighMemoryUsage",
+      "incident_opened": true,
+      "fault_to_incident_seconds": 49.4,
+      "severity": "HIGH",
+      "labelled_simulated": true,
+      "observed_metric": {
+        "name": "memory_rss",
+        "value": 286355456.0,
+        "unit": "bytes"
+      },
+      "auto_resolved_by_monitoring": true,
+      "clear_to_resolved_seconds": 14.4,
+      "resolution_summary": "Resolved automatically: monitoring reported that the alert condition cleared."
+    }
+  ]
+}
