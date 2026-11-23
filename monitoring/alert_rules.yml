@@ -1,57 +1,77 @@
+# VigilOps - Prometheus alert rules (version controlled)
+#
+# Every rule carries:
+#   severity     critical | high | medium | low   -> incident severity
+#   resource     Prometheus job of the monitored resource -> incident's affected resource
+#   action_code  the allowlisted automated action VigilOps may offer (informational;
+#                the backend decides applicability from its own catalog)
+#
+# Validate with:  docker compose exec prometheus promtool check rules /etc/prometheus/alert_rules.yml
 groups:
-  - name: cloudshield_alerts
+  - name: vigilops-demo-app
     rules:
       - alert: ApplicationUnavailable
-        expr: app_health_status == 0
-        for: 5s
+        expr: up{job="demo-app"} == 0
+        for: 15s
         labels:
           severity: critical
-          resource: test-app-service
-          recommended_action: RESTART_TEST_APP
+          resource: demo-app
+          action_code: ACTION-001
         annotations:
-          summary: "Monitored test application health probe failed"
-          description: "app_health_status is 0. Service endpoint /health returned HTTP 500."
+          summary: "Demo application is unavailable"
+          description: "Prometheus has been unable to scrape {{ $labels.instance }} for more than 15 seconds."
 
-      - alert: HighCPUUtilization
-        expr: app_cpu_usage_percent > 80
-        for: 10s
+      - alert: HighHttp5xxErrorRate
+        expr: |
+          (
+            sum by (job, instance, resource) (rate(http_requests_total{job="demo-app", status=~"5.."}[1m]))
+            /
+            sum by (job, instance, resource) (rate(http_requests_total{job="demo-app"}[1m]))
+          ) > 0.20
+        for: 30s
         labels:
           severity: high
-          resource: test-app-service
-          recommended_action: RESTART_TEST_APP
+          resource: demo-app
+          action_code: ACTION-001
         annotations:
-          summary: "Sustained high CPU usage detected"
-          description: "CPU usage exceeds 80% threshold (measured value > 80%)."
+          summary: "High HTTP 5xx error rate on the demo application"
+          description: "{{ $value | humanizePercentage }} of requests to {{ $labels.instance }} returned a 5xx status over the last minute (threshold 20%)."
 
-      - alert: HighMemoryUtilization
-        expr: app_memory_usage_percent > 85
-        for: 10s
-        labels:
-          severity: high
-          resource: test-app-service
-          recommended_action: RESTART_TEST_APP
-        annotations:
-          summary: "Sustained high memory usage detected"
-          description: "Memory usage exceeds 85% threshold."
-
-      - alert: HighErrorRate
-        expr: rate(http_errors_total[1m]) > 1
-        for: 10s
-        labels:
-          severity: high
-          resource: test-app-service
-          recommended_action: RESTART_TEST_APP
-        annotations:
-          summary: "Spike in application error responses"
-          description: "HTTP error rate exceeds 1 error/sec."
-
-      - alert: HighRequestLatency
-        expr: app_request_latency_ms > 1000
-        for: 10s
+      - alert: HighApiLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, job, instance, resource) (rate(http_request_duration_seconds_bucket{job="demo-app"}[1m]))
+          ) > 1
+        for: 30s
         labels:
           severity: medium
-          resource: test-app-service
-          recommended_action: RESTART_TEST_APP
+          resource: demo-app
+          action_code: ACTION-001
         annotations:
-          summary: "Elevated HTTP request latency detected"
-          description: "Average latency exceeds 1000ms threshold."
+          summary: "High API latency on the demo application"
+          description: "p95 response time on {{ $labels.instance }} is {{ $value | humanizeDuration }} (threshold 1s)."
+
+      # CPU and memory are measured from the process's own counters
+      # (prometheus_client ProcessCollector), so these rules are genuinely supported.
+      - alert: HighCpuUsage
+        expr: rate(process_cpu_seconds_total{job="demo-app"}[1m]) > 0.80
+        for: 30s
+        labels:
+          severity: high
+          resource: demo-app
+          action_code: ACTION-001
+        annotations:
+          summary: "High CPU usage on the demo application"
+          description: "The process on {{ $labels.instance }} is using {{ $value | humanizePercentage }} of one CPU core (threshold 80%)."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="demo-app"} > 250 * 1024 * 1024
+        for: 30s
+        labels:
+          severity: high
+          resource: demo-app
+          action_code: ACTION-001
+        annotations:
+          summary: "High memory usage on the demo application"
+          description: "Resident memory on {{ $labels.instance }} is {{ $value | humanize1024 }}B (threshold 250MiB)."

@@ -1,0 +1,27 @@
+# VigilOps - Alertmanager configuration (version controlled)
+#
+# All alerts are delivered to the VigilOps backend webhook, which turns them
+# into incidents.  The webhook is protected by a bearer token that is supplied
+# to this container as a Docker secret (never written in this file).
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: vigilops-backend
+  group_by: ["alertname", "instance"]
+  group_wait: 5s        # delay before the first notification of a new group
+  group_interval: 15s   # delay before notifying about changes (e.g. resolved)
+  # Short on purpose so repeated-notification deduplication can be demonstrated.
+  # Must match ALERT_REPEAT_INTERVAL_SECONDS (backend setting, default 120).
+  repeat_interval: 2m
+
+receivers:
+  - name: vigilops-backend
+    webhook_configs:
+      - url: http://backend:8000/api/alerts/webhook
+        send_resolved: true
+        max_alerts: 50
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /run/secrets/alert_webhook_token
