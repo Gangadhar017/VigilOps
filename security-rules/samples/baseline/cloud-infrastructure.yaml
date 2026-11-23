@@ -1,0 +1,68 @@
+# VigilOps demonstration environment - sample cloud configuration (INSECURE BASELINE).
+# This file is copied into the scan workspace by the remediation worker when the
+# demo environment is initialised or reset. It intentionally violates SEC-001..SEC-005.
+# It describes sample resources only; it is not connected to a real cloud account.
+schema_version: vigilops/v1
+environment: staging
+description: Sample cloud configuration used by the VigilOps demonstration environment.
+resources:
+- type: storage_bucket
+  name: customer-records
+  public_access: true
+  acl: public-read
+  encryption:
+    enabled: false
+    algorithm: NONE
+- type: storage_bucket
+  name: application-logs
+  public_access: false
+  acl: private
+  encryption:
+    enabled: true
+    algorithm: AES-256
+- type: database
+  name: orders-db
+  engine: postgres
+  encryption:
+    enabled: true
+    algorithm: AES-256
+- type: iam_policy
+  name: app-deployer-role
+  statements:
+  - effect: Allow
+    actions:
+    - '*'
+    resources:
+    - '*'
+- type: iam_policy
+  name: report-reader-role
+  statements:
+  - effect: Allow
+    actions:
+    - s3:GetObject
+    - s3:ListBucket
+    resources:
+    - arn:aws:s3:::application-logs
+    - arn:aws:s3:::application-logs/*
+- type: security_group
+  name: web-sg
+  ingress:
+  - protocol: tcp
+    port: 443
+    cidr: 0.0.0.0/0
+  - protocol: tcp
+    port: 22
+    cidr: 0.0.0.0/0
+  - protocol: tcp
+    port: 5432
+    cidr: 0.0.0.0/0
+- type: container
+  name: worker-agent
+  image: registry.local/worker-agent:1.4.2
+  privileged: true
+  read_only_root_filesystem: false
+- type: container
+  name: web-frontend
+  image: registry.local/web-frontend:2.1.0
+  privileged: false
+  read_only_root_filesystem: true

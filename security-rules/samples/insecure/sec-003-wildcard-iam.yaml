@@ -1,0 +1,28 @@
+# INSECURE fixture: must trigger SEC-003 only (three variants).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: iam_policy
+  name: full-admin-policy
+  statements:
+  - effect: Allow
+    actions:
+    - '*'
+    resources:
+    - '*'
+- type: iam_policy
+  name: service-wide-wildcard-policy
+  statements:
+  - effect: Allow
+    actions:
+    - s3:*
+    resources:
+    - arn:aws:s3:::reports-bucket/*
+- type: iam_policy
+  name: wildcard-resource-policy
+  statements:
+  - effect: Allow
+    actions:
+    - ec2:TerminateInstances
+    resources:
+    - '*'

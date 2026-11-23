@@ -1,0 +1,23 @@
+# SECURE fixture: must produce no findings (SEC-002 counterpart).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: storage_bucket
+  name: unencrypted-bucket
+  public_access: false
+  acl: private
+  encryption:
+    enabled: true
+    algorithm: AES-256
+- type: disk_volume
+  name: data-volume-without-encryption-block
+  size_gb: 100
+  encryption:
+    enabled: true
+    algorithm: AES-256
+- type: database
+  name: orders-db-no-algorithm
+  engine: postgres
+  encryption:
+    enabled: true
+    algorithm: aws:kms

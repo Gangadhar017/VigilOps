@@ -1,0 +1,22 @@
+# INSECURE fixture: must trigger SEC-004 only (single port, range and IPv6).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: security_group
+  name: ssh-open-to-world
+  ingress:
+  - protocol: tcp
+    port: 22
+    cidr: 0.0.0.0/0
+- type: security_group
+  name: wide-port-range-open
+  ingress:
+  - protocol: tcp
+    port_range: 3000-6000
+    cidr: 0.0.0.0/0
+- type: security_group
+  name: rdp-open-ipv6
+  ingress:
+  - protocol: tcp
+    port: 3389
+    cidr: ::/0

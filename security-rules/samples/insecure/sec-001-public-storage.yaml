@@ -1,0 +1,11 @@
+# INSECURE fixture: must trigger SEC-001 only.
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: storage_bucket
+  name: public-assets-bucket
+  public_access: true
+  acl: public-read
+  encryption:
+    enabled: true
+    algorithm: AES-256

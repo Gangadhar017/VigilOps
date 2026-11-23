@@ -1,40 +1,107 @@
+# VigilOps security rule catalog (version controlled).
+#
+# This file holds the *metadata* of every scanner rule.  The detection logic
+# itself lives in backend/app/security_scanner/rules.py; the scanner refuses to
+# start if the two do not describe exactly the same rule ids.
+#
+# Scope: these rules evaluate local YAML cloud-configuration files that follow
+# the "vigilops/v1" schema (see docs/security.md).  They are NOT a live cloud
+# account assessment.
+catalog_version: "2.0"
+schema_version: "vigilops/v1"
+
 policies:
   - id: SEC-001
-    name: Public Storage Access Enabled
-    severity: high
-    target: storage_policy
-    remediation_action: FIX_SEC_001
-    recommendation: Disable public access unless explicitly required and approved for public web assets.
-    description: Storage bucket or volume policy allows open public read or write access.
+    name: Public Storage Access
+    severity: HIGH
+    resource_types: [storage_bucket]
+    description: >-
+      A storage bucket allows anonymous (public) access to its contents.
+    detection_logic: >-
+      A resource of type storage_bucket is flagged when `public_access` is
+      true, or when `acl` is `public-read` or `public-read-write`.
+    impact: >-
+      Anyone on the internet can list or download the stored objects. Public
+      write access additionally allows tampering and hosting of malicious
+      content. This is one of the most common causes of cloud data leaks.
+    recommendation: >-
+      Set `public_access: false` and use a `private` ACL. Grant access to
+      specific identities through IAM policies, and serve genuinely public
+      assets through a CDN with a dedicated bucket.
+    automated_action: ACTION-002
 
   - id: SEC-002
-    name: Missing Storage Encryption Requirement
-    severity: medium
-    target: storage_policy
-    remediation_action: FIX_SEC_002
-    recommendation: Enforce server-side encryption with AES-256 or KMS customer-managed keys.
-    description: Data at rest is stored unencrypted, violating baseline cloud data protection standards.
+    name: Missing Encryption
+    severity: MEDIUM
+    resource_types: [storage_bucket, disk_volume, database]
+    description: >-
+      Data at rest is stored without encryption.
+    detection_logic: >-
+      A storage_bucket, disk_volume or database resource is flagged when its
+      `encryption` block is missing, when `encryption.enabled` is not true, or
+      when `encryption.algorithm` is empty or NONE.
+    impact: >-
+      If the underlying storage media, a snapshot or a backup is exposed, the
+      data can be read in clear text. Unencrypted storage also violates common
+      compliance baselines (CIS, ISO 27001, PCI-DSS).
+    recommendation: >-
+      Enable encryption at rest (`encryption.enabled: true`) with a strong
+      algorithm such as AES-256, preferably using a managed key service.
+    automated_action: null
 
   - id: SEC-003
-    name: Wildcard IAM Administrative Permissions
-    severity: critical
-    target: iam_policy
-    remediation_action: FIX_SEC_003
-    recommendation: Replace wildcard '*' permissions with specific least-privilege API actions.
-    description: IAM policy grants unrestricted '*' administrative permissions across cloud resources.
+    name: Wildcard IAM Permissions
+    severity: CRITICAL
+    resource_types: [iam_policy]
+    description: >-
+      An IAM policy grants overly broad actions or applies to every resource.
+    detection_logic: >-
+      An iam_policy resource is flagged for every statement with effect Allow
+      whose `actions` contain `*` or a service-wide wildcard such as `s3:*`,
+      or whose `resources` contain `*`.
+    impact: >-
+      A compromised identity holding this policy can perform any action,
+      including deleting data, creating new administrators and disabling
+      logging. Wildcards defeat the principle of least privilege.
+    recommendation: >-
+      Replace wildcards with the specific actions the workload needs (for
+      example `s3:GetObject`) and scope `resources` to explicit identifiers.
+    automated_action: null
 
   - id: SEC-004
-    name: Unrestricted Inbound Network Access on Sensitive Ports
-    severity: high
-    target: network_rule
-    remediation_action: FIX_SEC_004
-    recommendation: Restrict ingress CIDR from 0.0.0.0/0 to authorized corporate subnets or bastion ranges.
-    description: Security group or firewall exposes sensitive administrative ports (22, 3389, 5432) to the public internet.
+    name: Unrestricted Inbound Network Access
+    severity: HIGH
+    resource_types: [security_group]
+    description: >-
+      A network rule exposes a sensitive port to the whole internet.
+    detection_logic: >-
+      A security_group resource is flagged for every ingress rule whose `cidr`
+      is 0.0.0.0/0 or ::/0 and whose `port` or `port_range` includes a
+      sensitive port (22 SSH, 23 Telnet, 3389 RDP, 1433 MSSQL, 3306 MySQL,
+      5432 PostgreSQL, 6379 Redis, 9200 Elasticsearch, 27017 MongoDB).
+    impact: >-
+      Administrative and database services reachable from any address are
+      continuously scanned and brute-forced. A single weak credential or
+      unpatched service gives an attacker direct access.
+    recommendation: >-
+      Restrict the source CIDR to trusted ranges (corporate network, VPN or a
+      bastion host) or remove the rule and use a private connection.
+    automated_action: null
 
   - id: SEC-005
-    name: Privileged Execution Enabled in Container Spec
-    severity: high
-    target: container_spec
-    remediation_action: FIX_SEC_005
-    recommendation: Run container in unprivileged mode and drop unnecessary Linux capabilities.
-    description: Container specification has privileged mode enabled, granting host-level root capabilities.
+    name: Privileged Container Execution
+    severity: HIGH
+    resource_types: [container]
+    description: >-
+      A container is configured to run in privileged mode.
+    detection_logic: >-
+      A container resource is flagged when `privileged` is true or when
+      `security_context.privileged` is true.
+    impact: >-
+      A privileged container has almost all the capabilities of the host
+      kernel. A container escape then becomes a full host compromise that can
+      affect every other workload on the node.
+    recommendation: >-
+      Run the container unprivileged (`privileged: false`), drop unnecessary
+      Linux capabilities and add only the specific capability that is needed.
+    automated_action: null

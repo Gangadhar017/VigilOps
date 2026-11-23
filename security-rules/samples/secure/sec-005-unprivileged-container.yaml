@@ -1,0 +1,14 @@
+# SECURE fixture: must produce no findings (SEC-005 counterpart).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: container
+  name: privileged-agent
+  image: registry.local/agent:1.0.0
+  privileged: false
+- type: container
+  name: privileged-via-security-context
+  image: registry.local/collector:2.3.1
+  security_context:
+    privileged: false
+    run_as_non_root: true

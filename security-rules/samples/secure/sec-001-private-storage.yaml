@@ -1,0 +1,11 @@
+# SECURE fixture: must produce no findings (SEC-001 counterpart).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: storage_bucket
+  name: public-assets-bucket
+  public_access: false
+  acl: private
+  encryption:
+    enabled: true
+    algorithm: AES-256

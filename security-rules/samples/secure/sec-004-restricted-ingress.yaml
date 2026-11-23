@@ -1,0 +1,25 @@
+# SECURE fixture: must produce no findings (SEC-004 counterpart).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: security_group
+  name: ssh-open-to-world
+  ingress:
+  - protocol: tcp
+    port: 22
+    cidr: 10.0.0.0/8
+- type: security_group
+  name: public-web-only
+  ingress:
+  - protocol: tcp
+    port: 443
+    cidr: 0.0.0.0/0
+  - protocol: tcp
+    port: 80
+    cidr: 0.0.0.0/0
+- type: security_group
+  name: database-from-app-subnet
+  ingress:
+  - protocol: tcp
+    port: 5432
+    cidr: 10.20.0.0/16

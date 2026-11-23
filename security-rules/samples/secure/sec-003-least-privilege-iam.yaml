@@ -1,0 +1,26 @@
+# SECURE fixture: must produce no findings (SEC-003 counterpart).
+schema_version: vigilops/v1
+environment: test-fixture
+resources:
+- type: iam_policy
+  name: full-admin-policy
+  statements:
+  - effect: Allow
+    actions:
+    - s3:GetObject
+    - s3:PutObject
+    resources:
+    - arn:aws:s3:::reports-bucket/*
+- type: iam_policy
+  name: explicit-deny-wildcard-policy
+  statements:
+  - effect: Deny
+    actions:
+    - '*'
+    resources:
+    - '*'
+  - effect: Allow
+    actions:
+    - ec2:DescribeInstances
+    resources:
+    - arn:aws:ec2:ap-south-1:111122223333:instance/i-0abc123
