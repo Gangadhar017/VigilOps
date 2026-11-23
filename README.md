@@ -21,6 +21,23 @@ brings together:
 The project was upgraded from an earlier prototype called CloudShield. What the prototype contained
 and why parts of it were rewritten is recorded in [docs/phase-0-audit.md](docs/phase-0-audit.md).
 
+## Interface
+
+Screenshots of the running application, taken with `node tests/e2e/screenshots.js` after the
+demonstrations had produced real records.
+
+| Overview (dark theme) | Overview (light theme) |
+|---|---|
+| ![Overview page, dark theme](docs/screenshots/dark-overview.png) | ![Overview page, light theme](docs/screenshots/light-overview.png) |
+
+| Incident with its timeline | Remediation request with verification |
+|---|---|
+| ![Incident detail page](docs/screenshots/dark-incident-detail.png) | ![Remediation request detail page](docs/screenshots/dark-remediation-detail.png) |
+
+| Sign-in | Security findings |
+|---|---|
+| ![Sign-in page](docs/screenshots/dark-login.png) | ![Security findings page](docs/screenshots/dark-findings.png) |
+
 ## Problem statement
 
 Operating a cloud workload safely involves several activities that are usually handled by separate
@@ -93,7 +110,7 @@ workspace volume. Details, data flows and design decisions: [docs/architecture.m
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, Vite 5, Tailwind CSS 3.4, React Router 6, Axios, Recharts, lucide-react |
+| Frontend | React 18, Vite 5, Tailwind CSS 3.4, React Router 6, Axios, Recharts, lucide-react; IBM Plex Sans and Mono bundled with the application (no external font service) |
 | Backend | Python 3.11, FastAPI, Pydantic 2, SQLAlchemy 2, Alembic, python-jose (JWT), bcrypt, httpx, PyYAML, prometheus-client |
 | Database | PostgreSQL 16 |
 | Monitoring | Prometheus v2.51.0, Alertmanager v0.27.0 |
