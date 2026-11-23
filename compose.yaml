@@ -1,87 +1,236 @@
+# VigilOps - local-first stack
+#
+#   cp .env.example .env
+#   docker compose up --build -d
+#   open http://localhost:8080
+#
+# Only the web service is meant to be reached by users.  The other published
+# ports are bound to 127.0.0.1 so they are available for local demonstrations
+# (Prometheus UI, Alertmanager UI, API docs) but never from another machine.
+# See compose.prod.yaml for a deployment that publishes nothing but 80/443.
+name: vigilops
+
+x-backend-image: &backend-image
+  image: vigilops-backend:local
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+
+x-common-env: &common-env
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-vigilops}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-vigilops}
+  PROMETHEUS_URL: http://prometheus:9090
+  ALERTMANAGER_URL: http://alertmanager:9093
+  DEMO_APP_URL: http://test-app:8001
+  DEMO_CONTROLS_ENABLED: ${DEMO_CONTROLS_ENABLED:-false}
+  PROMETHEUS_SCRAPE_INTERVAL_SECONDS: ${PROMETHEUS_SCRAPE_INTERVAL_SECONDS:-5}
+  # Must equal repeat_interval in monitoring/alertmanager.yml.
+  ALERT_REPEAT_INTERVAL_SECONDS: ${ALERT_REPEAT_INTERVAL_SECONDS:-120}
+  REMEDIATION_WRITABLE_TARGETS: ${REMEDIATION_WRITABLE_TARGETS:-cloud-infrastructure.yaml}
+  REMEDIATION_MAX_ATTEMPTS: ${REMEDIATION_MAX_ATTEMPTS:-3}
+  ACTION_TIMEOUT_SECONDS: ${ACTION_TIMEOUT_SECONDS:-30}
+  VERIFY_TIMEOUT_SECONDS: ${VERIFY_TIMEOUT_SECONDS:-150}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: ${LOG_FORMAT:-json}
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: cloudshield-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: cloudshield
-      POSTGRES_PASSWORD: shieldpass123
-      POSTGRES_DB: cloudshield
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-vigilops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-vigilops}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cloudshield -d cloudshield"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+    networks: [internal]
+
+  # One-shot: make the scan workspace volume writable by the unprivileged worker user.
+  workspace-init:
+    <<: *backend-image
+    user: "0:0"
+    command: ["sh", "-c", "chown -R 10001:10001 /data/scan-workspace && chmod 750 /data/scan-workspace"]
+    volumes:
+      - scan_workspace:/data/scan-workspace
+    network_mode: none
+    restart: "no"
+
+  backend:
+    <<: *backend-image
+    restart: unless-stopped
+    environment:
+      <<: *common-env
+      PROCESS_ROLE: api
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      ALERT_WEBHOOK_TOKEN: ${ALERT_WEBHOOK_TOKEN:?set ALERT_WEBHOOK_TOKEN in .env}
+      DEMO_APP_CONTROL_TOKEN: ${DEMO_APP_CONTROL_TOKEN:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_OPERATOR_EMAIL: ${BOOTSTRAP_OPERATOR_EMAIL:-}
+      BOOTSTRAP_OPERATOR_PASSWORD: ${BOOTSTRAP_OPERATOR_PASSWORD:-}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      AI_RATE_LIMIT_PER_MINUTE: ${AI_RATE_LIMIT_PER_MINUTE:-10}
+      AI_DAILY_REQUEST_LIMIT: ${AI_DAILY_REQUEST_LIMIT:-400}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-20}
+      LOGIN_RATE_LIMIT_ATTEMPTS: ${LOGIN_RATE_LIMIT_ATTEMPTS:-5}
+      LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${LOGIN_RATE_LIMIT_WINDOW_SECONDS:-300}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Addresses whose X-Forwarded-For header is trusted (default: any peer on the
+      # private network; set it to the proxy's address to tighten).
+      FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-*}"
+    volumes:
+      # Read-only: the API can scan configuration files but can never modify them.
+      - scan_workspace:/data/scan-workspace:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      workspace-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "127.0.0.1:${BACKEND_DEV_PORT:-8000}:8000"   # API docs at /docs (development only)
+    networks: [internal]
+
+  # Restricted remediation worker: no ports, read-only root filesystem, no
+  # Linux capabilities, and the only writer of the scan workspace.
+  worker:
+    <<: *backend-image
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.remediation_worker"]
+    environment:
+      <<: *common-env
+      PROCESS_ROLE: worker
+      WORKER_ID: remediation-worker-1
+      DEMO_APP_RECOVERY_TOKEN: ${DEMO_APP_RECOVERY_TOKEN:-}
+    volumes:
+      - scan_workspace:/data/scan-workspace
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.workers.healthcheck"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks: [internal]
+
+  # Monitored demonstration application
+  test-app:
+    image: vigilops-demo-app:local
+    build:
+      context: ./test-app
+    restart: unless-stopped
+    environment:
+      PORT: "8001"
+      DEMO_CONTROLS_ENABLED: ${DEMO_CONTROLS_ENABLED:-false}
+      DEMO_APP_CONTROL_TOKEN: ${DEMO_APP_CONTROL_TOKEN:-}
+      DEMO_APP_RECOVERY_TOKEN: ${DEMO_APP_RECOVERY_TOKEN:-}
+    mem_limit: 512m
+    cpus: 1.0
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    networks: [internal]
 
   prometheus:
     image: prom/prometheus:v2.51.0
-    container_name: cloudshield-prometheus
     restart: unless-stopped
-    ports:
-      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus_data:/prometheus
+    depends_on:
+      - alertmanager
+    ports:
+      - "127.0.0.1:${PROMETHEUS_DEV_PORT:-9090}:9090"
+    networks: [internal]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-    depends_on:
-      - test-app
-
-  test-app:
-    build:
-      context: ./test-app
-      dockerfile: Dockerfile
-    container_name: cloudshield-test-app
-    restart: unless-stopped
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    secrets:
+      - alert_webhook_token
     ports:
-      - "8001:8001"
-    environment:
-      - PORT=8001
-      - APP_NAME=CloudShield-Monitored-Test-App
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
+      - "127.0.0.1:${ALERTMANAGER_DEV_PORT:-9093}:9093"
+    networks: [internal]
 
-  backend:
+  # Public entry point: React frontend + reverse proxy to /api
+  web:
+    image: vigilops-web:local
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: cloudshield-backend
+      context: .
+      dockerfile: frontend/Dockerfile
     restart: unless-stopped
-    ports:
-      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://cloudshield:shieldpass123@postgres:5432/cloudshield
-      - PROMETHEUS_URL=http://prometheus:9090
-      - TEST_APP_URL=http://test-app:8001
-      - SECRET_KEY=cloudshield-super-secret-jwt-key-replace-in-production-2026
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
     depends_on:
-      postgres:
+      backend:
         condition: service_healthy
-      test-app:
-        condition: service_started
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: cloudshield-frontend
-    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]   # bind ports 80/443
+    security_opt:
+      - no-new-privileges:true
     ports:
-      - "5173:5173"
-    depends_on:
-      - backend
+      # Loopback by default: the local stack speaks plain HTTP.  Set
+      # VIGILOPS_BIND_ADDRESS=0.0.0.0 to reach it from other devices on a trusted LAN.
+      - "${VIGILOPS_BIND_ADDRESS:-127.0.0.1}:${VIGILOPS_HTTP_PORT:-8080}:80"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+
+secrets:
+  # Delivered to Alertmanager as a file, so the token is not written in its config.
+  alert_webhook_token:
+    environment: ALERT_WEBHOOK_TOKEN
 
 volumes:
   pgdata:
   prometheus_data:
+  alertmanager_data:
+  scan_workspace:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge

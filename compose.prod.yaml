@@ -1,0 +1,52 @@
+# VigilOps - production overlay for a Linux server / VM
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml up --build -d
+#
+# Differences from the local stack:
+#   * ENVIRONMENT=production: placeholder secrets are refused, API docs are off,
+#     and demonstration controls are disabled regardless of DEMO_CONTROLS_ENABLED.
+#   * Only the web service publishes ports (80 and 443).  Caddy obtains a TLS
+#     certificate automatically for VIGILOPS_DOMAIN.
+#   * PostgreSQL, the backend, Prometheus, Alertmanager and the worker are
+#     reachable only on the private Docker network.
+#
+# Required in .env:  VIGILOPS_DOMAIN=vigilops.example.com  (DNS must point to this host)
+services:
+  postgres:
+    restart: always
+
+  backend:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      DEMO_CONTROLS_ENABLED: "false"
+      LOG_FORMAT: json
+    ports: !reset []
+
+  worker:
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      DEMO_CONTROLS_ENABLED: "false"
+
+  test-app:
+    restart: always
+    environment:
+      DEMO_CONTROLS_ENABLED: "false"
+
+  prometheus:
+    restart: always
+    ports: !reset []
+
+  alertmanager:
+    restart: always
+    ports: !reset []
+
+  web:
+    restart: always
+    environment:
+      SITE_ADDRESS: ${VIGILOPS_DOMAIN:?set VIGILOPS_DOMAIN in .env for production}
+    ports: !override
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
