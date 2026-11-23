@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../api/auth', () => ({
   authApi: { login: vi.fn(), logout: vi.fn(), me: vi.fn(), changePassword: vi.fn() },
@@ -12,7 +12,9 @@ vi.mock('../api/remediation', () => ({
 }));
 import { authApi } from '../api/auth';
 import { errorMessage, tokenStore } from '../api/client';
+import { healthApi } from '../api/health';
 import { remediationApi } from '../api/remediation';
+import { SERVER_PROBE } from '../hooks/useServerStatus';
 import { AppRoutes } from '../App';
 import { MetricCard } from '../components/MetricCard';
 import { RequestRemediation } from '../components/RequestRemediation';
@@ -111,6 +113,53 @@ describe('authentication flow', () => {
     renderApp('/');
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(tokenStore.get()).toBeNull();
+  });
+});
+
+describe('sign-in page while the server is not answering yet', () => {
+  const defaults = { ...SERVER_PROBE };
+  afterEach(() => {
+    Object.assign(SERVER_PROBE, defaults);
+    healthApi.ping.mockImplementation(async () => true);
+  });
+
+  it('says that the server is starting, blocks sign-in, and continues by itself once it answers', async () => {
+    Object.assign(SERVER_PROBE, { slowAfterMs: 0, retryEveryMs: 20 });
+    let answering = false;
+    healthApi.ping.mockImplementation(async () => answering);
+    const user = userEvent.setup();
+    renderApp('/login');
+
+    expect(await screen.findByText(/The server is starting/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText('E-mail'), 'someone@test.local');
+    await user.type(screen.getByLabelText('Password'), 'Some-Password-1');
+    expect(screen.getByRole('button', { name: 'Waiting for the server…' })).toBeDisabled();
+    expect(authApi.login).not.toHaveBeenCalled();
+
+    answering = true;
+    await waitFor(() => expect(screen.queryByText(/The server is starting/)).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+  });
+
+  it('does not show the notice when the server answers straight away', async () => {
+    Object.assign(SERVER_PROBE, { slowAfterMs: 50 });
+    renderApp('/login');
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(screen.queryByText(/The server is starting/)).not.toBeInTheDocument();
+  });
+
+  it('gives up after the time limit and offers to check again', async () => {
+    Object.assign(SERVER_PROBE, { slowAfterMs: 0, retryEveryMs: 20, giveUpAfterMs: -1 });
+    let answering = false;
+    healthApi.ping.mockImplementation(async () => answering);
+    const user = userEvent.setup();
+    renderApp('/login');
+
+    expect(await screen.findByText(/The server is not answering/)).toBeInTheDocument();
+    answering = true;
+    await user.click(screen.getByRole('button', { name: 'Check again' }));
+    await waitFor(() => expect(screen.queryByText(/The server is not answering/)).not.toBeInTheDocument());
   });
 });
 
