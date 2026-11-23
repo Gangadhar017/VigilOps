@@ -1,6 +1,6 @@
 # System Architecture
 
-VigilOps runs as eight Docker Compose services on one private bridge network; `web` (Caddy) is the only service meant to be reached by users, and it forwards nothing but `/api/*` to the backend. The restricted worker has no inbound port: it only polls PostgreSQL for dispatched remediation requests and is the only writer of the scan workspace volume.
+In the Docker Compose stack, the reference deployment, VigilOps runs as eight services on one private bridge network; `web` (Caddy) is the only service meant to be reached by users, and it forwards nothing but `/api/*` to the backend. The restricted worker has no inbound port: it only polls PostgreSQL for dispatched remediation requests and is the only writer of the scan workspace volume.
 
 ```mermaid
 flowchart LR

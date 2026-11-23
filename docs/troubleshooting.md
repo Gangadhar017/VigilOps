@@ -99,6 +99,7 @@ volume; see [the backend cannot connect to the database](#the-backend-cannot-con
 | "ALERT_WEBHOOK_TOKEN must be set and at least 16 characters long" | The webhook token is missing or too short |
 | "Refusing to start in production with placeholder values for: ..." | Production mode with values from `.env.example`; the variables are named |
 | "SQLite is not supported in production; use PostgreSQL" | Production mode with a SQLite URL |
+| "BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy: ..." (or `BOOTSTRAP_OPERATOR_PASSWORD`) | Production mode with a bootstrap password that fails the password policy |
 | "ENVIRONMENT must be development, production or test" | Invalid `ENVIRONMENT` |
 | "AI_PROVIDER must be 'gemini' or 'none'" | Invalid `AI_PROVIDER` |
 
@@ -186,6 +187,18 @@ and the production overlay does not publish port 8000 at all.
 
 ## Login
 
+### The sign-in page shows "The server is starting. ..." or "The server is not answering."
+
+**Cause.** The sign-in page asks `/api/health` whether the backend is answering, and it is not
+answering yet: it is starting, restarting, or runs on a hosting plan that sleeps when idle. While
+the page waits, the Sign in button reads "Waiting for the server…" and is disabled. After three
+minutes without an answer the page shows "The server is not answering." with a "Check again" button.
+
+**Fix.** Wait; the page continues by itself as soon as the backend answers. If it says the server is
+not answering, check that the backend is running (`docker compose ps backend` for the Compose stack,
+the service page of the hosting provider for a hosted instance; see
+[deployment-render-vercel.md](deployment-render-vercel.md#troubleshooting)) and choose "Check again".
+
 ### "Incorrect e-mail or password."
 
 **Cause.** The same message is shown for a wrong password, an unknown e-mail and a deactivated
@@ -196,15 +209,19 @@ account. Common reasons with the bootstrap accounts:
   changed by the bootstrap step.
 - The bootstrap password did not meet the policy (10 or more characters, upper and lower case, a
   digit), so the account was not created. The backend log contains
-  "bootstrap account skipped: weak password".
+  "bootstrap account skipped: weak password". This applies outside production mode; in production
+  mode the API refuses to start instead (see
+  [`backend` keeps restarting](#backend-keeps-restarting-or-never-becomes-healthy)).
 
 **Fix.** Use the password that is actually set. An Administrator can reset any password under
 Settings, tab Users. If no Administrator can sign in, see the next entry but one.
 
 ### "Too many sign-in attempts. Try again in N seconds."
 
-**Cause.** Five failed attempts for the same e-mail from the same address within five minutes, or
-more than 30 sign-in requests from one address within a minute.
+**Cause.** Five failed attempts for the same e-mail from the same address within five minutes, 20
+failed attempts for the same e-mail from any address within five minutes, or more than 30 sign-in
+requests from one address within a minute. The limit per e-mail locks sign-in for that e-mail from
+every address, so it can also be caused by someone else who knows the e-mail and fails 20 times.
 
 **Fix.** Wait for the stated time. The limiter is held in the backend's memory, so
 `docker compose restart backend` also clears it.
@@ -384,7 +401,8 @@ without changing `ALERT_REPEAT_INTERVAL_SECONDS`.
 ### "The scan workspace is empty" or a scan reports that no configuration files are present
 
 **Cause.** The workspace volume contains no YAML file. This is the normal starting state in
-production mode or with demonstration controls disabled.
+production mode (without the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION`) or
+with demonstration controls disabled.
 
 **Fix.** Copy files in, or in demo mode use "Reset sample configuration":
 
@@ -467,8 +485,9 @@ findings reopen.
 | "This configuration file is not on the remediation allowlist." | ACTION-002 may only edit files named in `REMEDIATION_WRITABLE_TARGETS` (default: `cloud-infrastructure.yaml`) |
 | "The finding is ...; only OPEN findings can be remediated." | The finding is resolved, accepted risk or already has a request |
 
-**Fix.** Follow the manual steps shown, or change the allowlist as described in
-[configuration](configuration.md#changing-a-setting-that-compose-does-not-pass-through).
+**Fix.** Follow the manual steps shown, or add the file to the allowlist: set
+`REMEDIATION_WRITABLE_TARGETS` in `.env` and run `docker compose up -d` (see
+[configuration](configuration.md#security-scanner)).
 
 ### The "Request remediation" button is disabled
 
@@ -555,12 +574,22 @@ reason.
 ### Demonstration controls are missing or disabled
 
 **Cause.** `DEMO_CONTROLS_ENABLED` is not `true`, or the server runs in production mode, where they
-are always off. Only Administrators can use them; for an Operator the buttons are disabled, a notice
+are off unless the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is set. Only
+Administrators can use them; for an Operator the buttons are disabled, a notice
 says that only an Administrator can use the controls, and no fault-status badge is shown because the
 fault state is reported to Administrators only.
 
 **Fix.** For a local demonstration set `DEMO_CONTROLS_ENABLED=true` with `ENVIRONMENT=development`
 and run `docker compose up -d`.
+
+### "The '...' fault is switched off in this deployment because the host does not have the resources to run it."
+
+**Cause.** The fault mode is listed in `DEMO_DISABLED_FAULTS` on this server (the Render profile
+sets `cpu,memory`). `POST /api/demo/faults` answers HTTP 422 for such a mode, and the Demo controls
+tab does not list it.
+
+**Fix.** Use one of the faults that are offered. The Compose stack does not set the variable, so all
+five faults are available there.
 
 ## VigilAI
 
@@ -570,8 +599,9 @@ and run `docker compose up -d`.
 come from the knowledge base and live platform data.
 
 **Fix.** To enable live generation set `GEMINI_API_KEY` in `.env` and run
-`docker compose up -d backend`. Live mode was not verified during the build; see the
-[README](../README.md#gemini-api-setup).
+`docker compose up -d backend`; see the [README](../README.md#gemini-api-setup). Live generation was
+verified on 2026-11-23 with a real API key and the default model `gemini-3.5-flash-lite`; see the
+[verification report](verification-report.md#7-live-gemini-verification).
 
 ### An answer starts with a notice that live AI generation is unavailable
 
@@ -639,7 +669,7 @@ clears it. Nothing is stored on the server.
 |---|---|---|
 | A Python traceback ending in a connection error, or "The stack is not reachable at ..." | The stack is not running, or the port differs | Start it, or pass `--base-url` |
 | "Login failed for ...: HTTP 401" | The bootstrap passwords in `.env` are not the accounts' current passwords | Reset the passwords to the `.env` values, or update `.env` |
-| "Demo controls are disabled ..." | `DEMO_CONTROLS_ENABLED=false` or production mode | Enable them in a development environment |
+| "Demo controls are disabled ..." | `DEMO_CONTROLS_ENABLED=false`, or production mode without the hosted-demonstration opt-in | Enable them in a development environment |
 
 ### `run_e2e_demos.py` fails the check "Findings are persisted without duplicates"
 

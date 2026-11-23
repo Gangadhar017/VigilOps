@@ -29,7 +29,7 @@ VigilOps is a single web application that combines five operational functions an
 5. **Audit logging** - an append-only record of every relevant event.
 6. **VigilAI** - a read-only assistant backed by Google Gemini, shown as a floating chat widget.
 
-All functions share one FastAPI backend, one PostgreSQL database, one login and one React user interface. The system is deployed with Docker Compose on a single host.
+All functions share one FastAPI backend, one PostgreSQL database, one login and one React user interface. The system is deployed with Docker Compose on a single host. That stack is the reference deployment and is what this document describes. A second, free-hosting deployment (API, worker, demo application, Prometheus and Alertmanager as separate processes in one container on Render, each under its own user where the host lets the container switch users; the frontend on Vercel) is described in [deployment-render-vercel.md](deployment-render-vercel.md).
 
 What VigilOps deliberately is not: it does not connect to a cloud provider account, it does not run arbitrary commands, and it has no access to the Docker daemon or the host. The scanner reads local files in the `vigilops/v1` schema, and remediation is limited to the two actions in `backend/app/services/remediation_catalog.py`.
 
@@ -230,6 +230,7 @@ The user interface is a React 18 single-page application built with Vite and sty
 | `api/` | `client.js` (Axios instance, token store, 401 handling, error messages) and one module per backend area |
 | `context/` | `AuthContext` (session restore through `/api/auth/me`, `can(permission)` hint), `ThemeContext`, `ToastContext` |
 | `hooks/useApi.js` | Data loading with loading, error and retry state; optional polling that pauses while the tab is hidden |
+| `hooks/useServerStatus.js` | Availability probe used by the sign-in page: asks `/api/health` through `api/health.js` whether the backend is answering |
 | `layouts/AppLayout.jsx` | Sidebar, header, page outlet and the floating VigilAI widget |
 | `pages/` | Overview, Monitoring, Incidents, Security Findings, Remediation, Audit Logs, VigilAI / Help, Settings, Login and the detail pages |
 | `features/vigilai/` | `VigilAIWidget`, `VigilAIChat`, `SafeText` (renders assistant text as React text nodes, never as HTML) |
@@ -405,7 +406,7 @@ What this buys: a bug in, or a compromise of, the API process cannot directly ed
 
 ## Known limitations
 
-- **Scanner scope.** The scanner evaluates local YAML files in the `vigilops/v1` schema. It is not a live cloud assessment, and there is no API to upload files: files reach the workspace through the demo baseline (demo mode) or by being placed in the volume by the host operator. In production mode the workspace is not seeded.
+- **Scanner scope.** The scanner evaluates local YAML files in the `vigilops/v1` schema. It is not a live cloud assessment, and there is no API to upload files: files reach the workspace through the demo baseline (demo mode) or by being placed in the volume by the host operator. In production mode the workspace is not seeded, unless the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is set.
 - **Two automated actions.** Only ACTION-001 (recover the demo application) and ACTION-002 (correct public storage access for SEC-001) exist. ACTION-001 cannot start a stopped container.
 - **Fixed monitored resources.** Resources are registered at bootstrap (`demo-app`, `vigilops-backend`); there is no API to add one, and the alert rules target the job `demo-app`.
 - **Single instance.** One backend process and one worker. Rate limiters, the monitoring cache and the assistant's daily budget live in memory and reset on restart. There is no high availability for PostgreSQL or the host.

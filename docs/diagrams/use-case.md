@@ -23,7 +23,7 @@ flowchart LR
         uc_exec(["Dispatch or retry remediation"])
         uc_users(["Manage users and runtime settings"])
         uc_fullaudit(["View the complete audit trail"])
-        uc_demo(["Use demo controls, non-production only"])
+        uc_demo(["Use demo controls, off in production by default"])
         uc_alert(["Deliver firing and resolved alerts"])
         uc_incident(["Create, deduplicate, reopen or resolve an incident"])
         uc_run(["Execute an allowlisted action"])

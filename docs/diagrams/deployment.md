@@ -10,7 +10,7 @@ flowchart TB
 
     subgraph net["Docker bridge network: internal"]
         web["web: Caddy, container ports 80 and 443"]
-        backend["backend: FastAPI on 8000, non-root uid 10001, one process"]
+        backend["backend: FastAPI on 8000, non-root uid 10001, one process, read-only root filesystem, all capabilities dropped"]
         worker["worker: no ports, read-only root filesystem, all capabilities dropped"]
         testapp["test-app: demo application on 8001, read-only root filesystem, 512 MB, 1 CPU"]
         postgres["postgres: PostgreSQL 16 on 5432"]
@@ -59,4 +59,4 @@ flowchart TB
     secret --- alertmanager
 ```
 
-In production the overlay also sets `ENVIRONMENT=production` on the backend and the worker and forces `DEMO_CONTROLS_ENABLED=false` on the backend, the worker and the demo application. Step-by-step instructions are in [../deployment.md](../deployment.md).
+In production the overlay also sets `ENVIRONMENT=production` on the backend and the worker and forces `DEMO_CONTROLS_ENABLED=false` on the backend, the worker and the demo application. Step-by-step instructions are in [../deployment.md](../deployment.md). The diagram shows the Compose stack; the free-hosting variant (one container on Render, the frontend on Vercel) is described in [../deployment-render-vercel.md](../deployment-render-vercel.md).

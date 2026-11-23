@@ -4,6 +4,10 @@ How to run VigilOps locally and on a Linux server with the production overlay, w
 exposed, where data is stored, how to back it up and restore it, how to upgrade, and what to harden.
 The last section states plainly what was and was not verified.
 
+A free-hosting variant (one container on Render, the frontend on Vercel) is described in
+[deployment-render-vercel.md](deployment-render-vercel.md). The Docker Compose stack described here
+remains the reference deployment.
+
 Related documents: [setup](setup.md), [configuration](configuration.md), [security](security.md),
 [troubleshooting](troubleshooting.md), [deployment diagram](diagrams/deployment.md).
 
@@ -189,7 +193,14 @@ From `Settings._validate` and the properties in `backend/app/core/config.py`:
   variables: "Refusing to start in production with placeholder values for: ...".
 - **SQLite is refused** as a database.
 - **API documentation is off.** `/docs` and `/openapi.json` are not served.
-- **Demonstration controls are off regardless of `DEMO_CONTROLS_ENABLED`.** The fault-injection and
+- **Bootstrap passwords must meet the password policy.** The API exits at start with
+  "BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy: ..." (or the Operator's variable) if
+  a bootstrap password is set and fails the policy. Outside production the account is skipped and an
+  error is logged.
+- **Demonstration controls are off regardless of `DEMO_CONTROLS_ENABLED`,** unless the explicit
+  opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION=true` is set as well. The opt-in is `false` by default,
+  is not passed through by the Compose files, and exists only for a hosted demonstration instance
+  whose only workload is the bundled demo application. Without it the fault-injection and
   reset endpoints answer HTTP 404, the Demo controls tab reports that they are disabled, the demo
   application's fault endpoint does not exist, and the worker does not place the sample
   configuration in the scan workspace.

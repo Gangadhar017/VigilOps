@@ -29,7 +29,13 @@ from the `.env` file (see [setup](setup.md#signing-in-with-the-bootstrap-account
 
 - Any invalid combination gives the same message, "Incorrect e-mail or password."
 - After five failed attempts for the same e-mail from the same address within five minutes, further
-  attempts are refused until the window has passed.
+  attempts are refused until the window has passed. After 20 failed attempts for the same e-mail
+  from any address within five minutes, sign-in for that e-mail is refused from every address until
+  the window has passed.
+- The page checks whether the server is answering. If it has not answered within 2.5 seconds, the
+  page shows "The server is starting. ..." and the **Sign in** button reads "Waiting for the server…"
+  and is disabled until the server answers. After 3 minutes without an answer the page shows "The
+  server is not answering." with a **Check again** button.
 - A session lasts 60 minutes by default. It is stored per browser tab and ends when the tab is
   closed, when you choose **Logout**, or when your password or role is changed. You are then
   returned to the sign-in page with "Your session has ended. Please sign in again."
@@ -449,8 +455,9 @@ The role permission matrix as the backend enforces it.
 
 ### Demo controls
 
-Available only when the server runs outside production mode with `DEMO_CONTROLS_ENABLED=true`;
-otherwise the tab states that the controls are disabled. Operators can open the tab but cannot use
+Available only when the server runs outside production mode with `DEMO_CONTROLS_ENABLED=true`, or
+in production mode on a hosted demonstration instance that also sets the opt-in
+`ALLOW_DEMO_CONTROLS_IN_PRODUCTION=true`; otherwise the tab states that the controls are disabled. Operators can open the tab but cannot use
 the buttons, and the demo application's fault state is reported to Administrators only (an Operator
 sees a notice instead of the status badge).
 
@@ -464,6 +471,8 @@ sees a notice instead of the status badge).
 | latency | The business endpoint takes about 1.5 seconds | HighApiLatency |
 | cpu | A background thread keeps one core busy | HighCpuUsage |
 | memory | The service allocates a block of memory | HighMemoryUsage |
+
+A fault that the deployment has switched off (`DEMO_DISABLED_FAULTS`) is not listed.
 
 For an Administrator the badge at the top of the card shows "No fault active", "Active fault:" with
 the fault's name, or "Demo app unreachable" when the demo application does not answer. The cpu and memory faults clear themselves after ten minutes. **Clear fault** returns

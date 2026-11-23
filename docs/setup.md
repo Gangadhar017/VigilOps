@@ -1,7 +1,8 @@
 # Setup Guide
 
-This guide installs VigilOps on one machine with Docker Compose, which is the supported way to run
-it. It covers Windows (Docker Desktop with WSL2) and Ubuntu Linux, the first start, signing in,
+This guide installs VigilOps on one machine with Docker Compose, which is the reference way to run
+it (a free-hosting variant on Render and Vercel is described in
+[deployment-render-vercel.md](deployment-render-vercel.md)). It covers Windows (Docker Desktop with WSL2) and Ubuntu Linux, the first start, signing in,
 verifying the installation, updating, resetting, and what is needed to run parts of the project
 outside Docker for development.
 
@@ -178,7 +179,8 @@ Optional edits before the first start (all described in [configuration](configur
   The default `127.0.0.1` restricts it to this computer. The local stack uses plain HTTP, so open
   it only on a trusted network.
 - `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_OPERATOR_EMAIL` and their passwords. Passwords need at least
-  10 characters with upper-case and lower-case letters and a digit, otherwise the account is skipped.
+  10 characters with upper-case and lower-case letters and a digit, otherwise the account is skipped
+  (in production mode the API refuses to start instead).
 - `GEMINI_API_KEY` to enable live AI generation. It can stay empty.
 
 ## First start
@@ -256,7 +258,8 @@ Things to know:
   `.env` afterwards does not change the existing account.
 - E-mail addresses are compared in lower case.
 - If a bootstrap password does not meet the password policy, the account is not created and the
-  backend log contains `bootstrap account skipped: weak password`.
+  backend log contains `bootstrap account skipped: weak password`. In production mode the API
+  refuses to start instead, with "BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy: ...".
 - There is no self-registration. Further users are created by an Administrator under Settings,
   tab Users.
 - After the first sign-in, change the password under Settings, tab Profile. This signs out all
