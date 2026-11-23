@@ -174,6 +174,10 @@ def atomic_write(path: Path, content: str) -> None:
             stream.write(content)
             stream.flush()
             os.fsync(stream.fileno())
+        # mkstemp creates the file private to the worker.  The API scans these
+        # files and may run as a different user (same group), so grant group read;
+        # nobody but the worker can write.
+        os.chmod(temp_name, 0o640)
         os.replace(temp_name, path)
     except Exception:
         try:
