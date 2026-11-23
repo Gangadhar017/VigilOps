@@ -100,8 +100,9 @@ class Settings(BaseSettings):
     ALERT_WEBHOOK_TOKEN: str = ""
 
     # --- Demonstration environment ------------------------------------
-    # Demo controls (fault injection, sample-config reset) are refused in
-    # production regardless of this flag.
+    # Demo controls (fault injection, sample-config reset).  In production they
+    # stay off even when this is true, unless ALLOW_DEMO_CONTROLS_IN_PRODUCTION
+    # (below) is set as well.
     DEMO_CONTROLS_ENABLED: bool = False
     DEMO_APP_CONTROL_TOKEN: str = ""   # backend -> demo app fault injection
     DEMO_APP_RECOVERY_TOKEN: str = ""  # worker  -> demo app recovery (ACTION-001)

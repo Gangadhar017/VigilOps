@@ -64,7 +64,7 @@ PERMISSION_DESCRIPTIONS: Dict[str, str] = {
     "users:manage": "Create, update and deactivate users",
     "settings:view": "View platform configuration",
     "settings:manage": "Change platform settings",
-    "demo:control": "Use demonstration controls (local demo mode only)",
+    "demo:control": "Use demonstration controls (demonstration environments only)",
 }
 
 
