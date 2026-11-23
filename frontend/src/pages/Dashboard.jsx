@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, FlaskConical, ShieldAlert, XCircle } from 'lucide-react';
 import { monitoringApi } from '../api/monitoring';
 import { LiveTag } from '../components/DataSourceTag';
@@ -12,58 +11,62 @@ import { TimeSeriesChart } from '../components/TimeSeriesChart';
 import { useApi } from '../hooks/useApi';
 import { formatDateTime, formatMetric, humanAction, timeAgo, utcTitle } from '../utils/format';
 
-const SEVERITY_COLORS = {
-  CRITICAL: 'rgb(var(--danger))',
-  HIGH: 'rgb(var(--warn))',
-  MEDIUM: 'rgb(var(--info))',
-  LOW: 'rgb(var(--muted))',
-};
+const SEVERITIES = [
+  ['CRITICAL', 'bg-danger'],
+  ['HIGH', 'bg-warn'],
+  ['MEDIUM', 'bg-info'],
+  ['LOW', 'bg-muted'],
+];
 const HEADLINE_METRICS = ['request_rate', 'error_rate_5xx', 'error_rate_4xx', 'latency_p95', 'cpu_usage', 'memory_rss', 'uptime'];
+const CARD_LINK = 'font-mono text-[10.5px] uppercase tracking-[0.08em] text-brand hover:underline';
 
+/** Counts per severity as thin proportional bars, so the figures can be read at a glance. */
 function SeverityChart({ title, counts, emptyLabel, to }) {
-  const data = Object.entries(counts || {}).map(([severity, count]) => ({ severity, count }));
-  const total = data.reduce((sum, item) => sum + item.count, 0);
+  const rows = SEVERITIES.map(([severity, color]) => ({ severity, color, count: counts?.[severity] || 0 }));
+  const total = rows.reduce((sum, row) => sum + row.count, 0);
+  const highest = Math.max(1, ...rows.map((row) => row.count));
   return (
     <div className="card flex flex-col">
       <div className="card-header">
         <h2 className="card-title">{title}</h2>
-        <Link to={to} className="text-xs font-medium text-brand hover:underline">
+        <Link to={to} className={CARD_LINK}>
           View all
         </Link>
       </div>
-      <div className="h-44 px-2 py-3">
-        {total === 0 ? (
-          <EmptyState title={emptyLabel} icon={CheckCircle2} className="py-4" />
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 12, bottom: 0, left: -18 }}>
-              <CartesianGrid stroke="rgb(var(--line))" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="severity" tick={{ fontSize: 10, fill: 'rgb(var(--muted))' }} stroke="rgb(var(--line))" />
-              <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'rgb(var(--muted))' }} stroke="rgb(var(--line))" />
-              <Tooltip
-                cursor={{ fill: 'rgb(var(--raised))' }}
-                contentStyle={{ background: 'rgb(var(--surface))', border: '1px solid rgb(var(--line))', borderRadius: 8, fontSize: 12 }}
-                labelStyle={{ color: 'rgb(var(--content))' }}
-              />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                {data.map((item) => (
-                  <Cell key={item.severity} fill={SEVERITY_COLORS[item.severity]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+      {total === 0 ? (
+        <EmptyState title={emptyLabel} icon={CheckCircle2} className="flex-1 py-8" />
+      ) : (
+        <div className="flex flex-1 flex-col gap-4 p-4">
+          <div className="flex items-baseline gap-2">
+            <span className="stat text-content">{total}</span>
+            <span className="eyebrow">total</span>
+          </div>
+          <ul className="space-y-2.5">
+            {rows.map((row) => (
+              <li key={row.severity} className="grid grid-cols-[4.75rem_1fr_1.75rem] items-center gap-3">
+                <span className="eyebrow flex items-center gap-1.5">
+                  <span className={`h-1.5 w-1.5 rounded-[1px] ${row.color}`} aria-hidden="true" />
+                  {row.severity}
+                </span>
+                <span className="h-1.5 overflow-hidden rounded-full bg-raised" aria-hidden="true">
+                  <span className={`block h-full rounded-full ${row.color}`} style={{ width: `${(row.count / highest) * 100}%` }} />
+                </span>
+                <span className={`text-right font-mono text-xs tabular-nums ${row.count ? 'text-content' : 'text-muted/70'}`}>{row.count}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
 
 function HealthRow({ label, ok, detail, unknown }) {
   return (
-    <li className="flex items-center justify-between gap-3 py-2">
-      <span className="text-sm text-content">{label}</span>
-      <span className="flex items-center gap-2 text-right">
-        {detail ? <span className="text-xs text-muted">{detail}</span> : null}
+    <li className="flex items-center justify-between gap-3 py-2.5">
+      <span className="text-[13px] text-content">{label}</span>
+      <span className="flex items-center gap-2.5 text-right">
+        {detail ? <span className="font-mono text-[11px] text-muted">{detail}</span> : null}
         <StatusBadge status={unknown ? 'UNKNOWN' : ok ? 'UP' : 'DOWN'} label={unknown ? 'Unknown' : ok ? 'Healthy' : 'Unavailable'} />
       </span>
     </li>
@@ -72,10 +75,10 @@ function HealthRow({ label, ok, detail, unknown }) {
 
 function ResourceCard({ resource, generatedAt }) {
   return (
-    <div className="card">
+    <div className="card overflow-hidden">
       <div className="card-header">
         <div className="min-w-0">
-          <h3 className="card-title">{resource.name}</h3>
+          <h3 className="text-sm font-semibold text-content">{resource.name}</h3>
           <p className="truncate text-xs text-muted">{resource.description}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -83,23 +86,26 @@ function ResourceCard({ resource, generatedAt }) {
           <StatusBadge status={resource.status} />
         </div>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 p-4 sm:grid-cols-4">
+      {/* Metric cells share hairlines: a 1px gap over a line-coloured background. */}
+      <dl className="grid grid-cols-2 gap-px bg-line/70 sm:grid-cols-4">
         {HEADLINE_METRICS.map((key) => {
           const metric = resource.metrics?.[key];
           const value = metric?.available ? formatMetric(metric.value, metric.unit, key) : null;
           return (
-            <div key={key} title={metric?.description}>
-              <dt className="text-[11px] uppercase tracking-wide text-muted">{metric?.label || key.replace(/_/g, ' ')}</dt>
+            <div key={key} title={metric?.description} className="flex min-h-[68px] flex-col justify-between bg-surface px-4 py-3">
+              <dt className="text-[11px] leading-4 text-muted">{metric?.label || key.replace(/_/g, ' ')}</dt>
               {value !== null ? (
-                <dd className="text-sm font-semibold tabular-nums text-content">{value}</dd>
+                <dd className="mt-1.5 text-[15px] font-semibold leading-5 tabular-nums text-content">{value}</dd>
               ) : (
-                <dd className="text-sm text-muted" title={metric?.reason || 'Prometheus has no value for this metric'}>
+                <dd className="mt-1.5 text-[13px] leading-5 text-muted" title={metric?.reason || 'Prometheus has no value for this metric'}>
                   Unavailable
                 </dd>
               )}
             </div>
           );
         })}
+        {/* Seven metrics in a four-column grid: fill the last cell so the hairlines stay complete. */}
+        <div className="bg-surface" aria-hidden="true" />
       </dl>
     </div>
   );
@@ -169,21 +175,22 @@ export default function Dashboard() {
         <MetricCard
           label="Remediation results"
           value={
-            <span className="flex items-baseline gap-3">
+            <span className="flex items-baseline gap-2">
               <span className="text-ok">{s.remediation.succeeded}</span>
-              <span className="text-base font-normal text-muted">succeeded</span>
+              <span className="eyebrow mr-2">succeeded</span>
               <span className={s.remediation.failed ? 'text-danger' : 'text-content'}>{s.remediation.failed}</span>
-              <span className="text-base font-normal text-muted">failed</span>
+              <span className="eyebrow">failed</span>
             </span>
           }
+          tone={s.remediation.failed ? 'danger' : 'default'}
           icon={s.remediation.failed ? XCircle : CheckCircle2}
           to="/remediation"
           hint="Verified outcomes of executed requests"
         />
       </div>
 
-      <section className="mt-6" aria-labelledby="health-heading">
-        <h2 id="health-heading" className="mb-3 text-sm font-semibold text-content">
+      <section className="mt-8" aria-labelledby="health-heading">
+        <h2 id="health-heading" className="section-title">
           Monitored resources
         </h2>
         {overview.loading && !o ? (
@@ -225,42 +232,47 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        <SeverityChart title="Active incidents by severity" counts={s.incidents.active_by_severity} emptyLabel="No active incidents" to="/incidents" />
-        <SeverityChart title="Unresolved findings by severity" counts={s.findings.unresolved_by_severity} emptyLabel="No unresolved findings" to="/findings" />
+      <section className="mt-8" aria-labelledby="posture-heading">
+        <h2 id="posture-heading" className="section-title">
+          Incidents, findings and platform
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <SeverityChart title="Active incidents by severity" counts={s.incidents.active_by_severity} emptyLabel="No active incidents" to="/incidents" />
+          <SeverityChart title="Unresolved findings by severity" counts={s.findings.unresolved_by_severity} emptyLabel="No unresolved findings" to="/findings" />
 
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title">Platform health</h2>
-            <Link to="/monitoring" className="text-xs font-medium text-brand hover:underline">
-              Monitoring
-            </Link>
+          <div className="card">
+            <div className="card-header">
+              <h2 className="card-title">Platform health</h2>
+              <Link to="/monitoring" className={CARD_LINK}>
+                Monitoring
+              </Link>
+            </div>
+            <ul className="divide-y divide-line/70 px-4">
+              <HealthRow label="Backend API" ok={s.platform.backend.healthy} detail={`v${s.platform.backend.version}`} />
+              <HealthRow label="Database" ok={s.platform.database.healthy} detail={s.platform.database.error || 'PostgreSQL'} />
+              <HealthRow label="Prometheus" ok={o?.prometheus?.available} unknown={!o} detail={o?.prometheus?.error} />
+              <HealthRow label="Alertmanager" ok={o?.alertmanager?.available} unknown={!o} detail={o?.alertmanager?.error} />
+              <HealthRow
+                label="Monitoring targets"
+                ok={targets.length > 0 && targetsUp === targets.length}
+                unknown={!o || !o.targets.available}
+                detail={o?.targets?.available ? `${targetsUp} of ${targets.length} up` : o?.targets?.reason}
+              />
+              <HealthRow
+                label="Remediation worker"
+                ok={s.platform.worker.online}
+                detail={s.platform.worker.last_seen_at ? `seen ${timeAgo(s.platform.worker.last_seen_at)}` : s.platform.worker.detail}
+              />
+            </ul>
           </div>
-          <ul className="divide-y divide-line px-4">
-            <HealthRow label="Backend API" ok={s.platform.backend.healthy} detail={`v${s.platform.backend.version}`} />
-            <HealthRow label="Database" ok={s.platform.database.healthy} detail={s.platform.database.error || 'PostgreSQL'} />
-            <HealthRow label="Prometheus" ok={o?.prometheus?.available} unknown={!o} detail={o?.prometheus?.error} />
-            <HealthRow label="Alertmanager" ok={o?.alertmanager?.available} unknown={!o} detail={o?.alertmanager?.error} />
-            <HealthRow
-              label="Monitoring targets"
-              ok={targets.length > 0 && targetsUp === targets.length}
-              unknown={!o || !o.targets.available}
-              detail={o?.targets?.available ? `${targetsUp} of ${targets.length} up` : o?.targets?.reason}
-            />
-            <HealthRow
-              label="Remediation worker"
-              ok={s.platform.worker.online}
-              detail={s.platform.worker.last_seen_at ? `seen ${timeAgo(s.platform.worker.last_seen_at)}` : s.platform.worker.detail}
-            />
-          </ul>
         </div>
-      </div>
+      </section>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="card">
           <div className="card-header">
             <h2 className="card-title">Latest security scan</h2>
-            <Link to="/findings" className="text-xs font-medium text-brand hover:underline">
+            <Link to="/findings" className={CARD_LINK}>
               Findings
             </Link>
           </div>
@@ -290,26 +302,26 @@ export default function Dashboard() {
         <div className="card lg:col-span-2">
           <div className="card-header">
             <h2 className="card-title">Recent audit events</h2>
-            <Link to="/audit" className="text-xs font-medium text-brand hover:underline">
+            <Link to="/audit" className={CARD_LINK}>
               Audit logs
             </Link>
           </div>
           {s.recent_audit_events.length === 0 ? (
             <EmptyState title="No audit events yet" />
           ) : (
-            <ul className="divide-y divide-line">
+            <ul className="divide-y divide-line/70">
               {s.recent_audit_events.map((event) => (
-                <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
+                <li key={event.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 transition-colors hover:bg-raised/40">
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-content">
+                    <p className="truncate text-[13px] text-content">
                       {humanAction(event.action)}
                       {event.entity_id ? <span className="text-muted"> · {event.entity_type} #{event.entity_id}</span> : null}
                     </p>
-                    <p className="truncate text-xs text-muted">{event.actor}</p>
+                    <p className="truncate font-mono text-[11px] text-muted">{event.actor}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     {event.outcome !== 'SUCCESS' ? <StatusBadge status={event.outcome} /> : null}
-                    <span className="text-xs text-muted" title={utcTitle(event.created_at)}>
+                    <span className="font-mono text-[11px] text-muted" title={utcTitle(event.created_at)}>
                       {timeAgo(event.created_at)}
                     </span>
                   </div>
