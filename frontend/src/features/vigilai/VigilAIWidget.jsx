@@ -11,6 +11,9 @@ export const WELCOME_MESSAGE =
 export const ASK_EVENT = 'vigilai:ask';
 export const askVigilAI = (question) => window.dispatchEvent(new CustomEvent(ASK_EVENT, { detail: { question } }));
 
+const CHROME_BUTTON =
+  'flex h-[30px] w-[30px] items-center justify-center rounded-md transition-colors hover:bg-white/[0.07] hover:text-chrome-text focus-visible:ring-offset-chrome';
+
 const welcome = () => ({ id: 'welcome', role: 'assistant', content: WELCOME_MESSAGE });
 const MAX_HISTORY_TURNS = 6;
 
@@ -130,26 +133,29 @@ export function VigilAIWidget() {
         <section
           role="dialog"
           aria-label="VigilAI assistant"
-          className="fixed inset-x-2 bottom-2 z-40 flex h-[min(78vh,600px)] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-pop sm:inset-x-auto sm:bottom-20 sm:right-5 sm:h-[min(72vh,580px)] sm:w-[390px]"
+          className="fixed inset-x-2 bottom-2 z-40 flex h-[min(78vh,600px)] flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-pop sm:inset-x-auto sm:bottom-20 sm:right-5 sm:h-[min(72vh,580px)] sm:w-[400px]"
         >
-          <header className="flex items-center justify-between gap-2 border-b border-line bg-raised/60 px-3 py-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand">
-                <Bot size={17} aria-hidden="true" />
+          {/* The panel header uses the navigation chrome, so it reads as part of the console in both themes. */}
+          <header className="flex items-center justify-between gap-2 border-b border-chrome-line bg-chrome px-3 py-2.5 text-chrome-text">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent text-accent-ink">
+                <Bot size={17} strokeWidth={2} aria-hidden="true" />
               </span>
               <div className="min-w-0 leading-tight">
-                <p className="text-sm font-semibold text-content">VigilAI</p>
-                <p className="truncate text-[11px] text-muted">VigilOps assistant · read-only{modeLabel ? ` · ${modeLabel}` : ''}</p>
+                <p className="text-[13px] font-semibold">VigilAI</p>
+                <p className="mt-0.5 truncate font-mono text-[10px] uppercase tracking-[0.08em] text-chrome-muted">
+                  VigilOps assistant · read-only{modeLabel ? ` · ${modeLabel}` : ''}
+                </p>
               </div>
             </div>
-            <div className="flex items-center">
-              <button type="button" className="btn-ghost btn-sm" onClick={clear} aria-label="Clear conversation" title="Clear conversation">
+            <div className="flex items-center text-chrome-muted">
+              <button type="button" className={CHROME_BUTTON} onClick={clear} aria-label="Clear conversation" title="Clear conversation">
                 <Trash2 size={15} />
               </button>
-              <button type="button" className="btn-ghost btn-sm" onClick={close} aria-label="Minimize VigilAI" title="Minimize">
+              <button type="button" className={CHROME_BUTTON} onClick={close} aria-label="Minimize VigilAI" title="Minimize">
                 <Minus size={16} />
               </button>
-              <button type="button" className="btn-ghost btn-sm sm:hidden" onClick={close} aria-label="Close VigilAI">
+              <button type="button" className={`${CHROME_BUTTON} sm:hidden`} onClick={close} aria-label="Close VigilAI">
                 <X size={16} />
               </button>
             </div>
@@ -174,11 +180,11 @@ export function VigilAIWidget() {
         aria-label={open ? 'Close VigilAI assistant' : 'Open VigilAI assistant'}
         aria-expanded={open}
         title="VigilAI assistant"
-        className={`fixed bottom-5 right-5 z-40 h-12 w-12 items-center justify-center rounded-full bg-brand text-white shadow-pop transition-transform hover:scale-105 dark:text-slate-900 ${
+        className={`fixed bottom-5 right-5 z-40 h-12 w-12 items-center justify-center rounded-lg border border-accent-ink/25 bg-accent text-accent-ink shadow-pop transition-transform hover:-translate-y-0.5 ${
           open ? 'hidden sm:flex' : 'flex'
         }`}
       >
-        {open ? <X size={22} /> : <Bot size={24} />}
+        {open ? <X size={21} strokeWidth={2.25} /> : <Bot size={23} strokeWidth={2} />}
       </button>
     </>
   );

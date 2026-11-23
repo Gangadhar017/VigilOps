@@ -11,17 +11,20 @@ export function SuggestedQuestions({ questions = DEFAULT_SUGGESTIONS, onSelect, 
   if (!questions?.length) return null;
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium text-muted">Suggested questions</p>
-      <div className="flex flex-wrap gap-1.5">
+      <p className="eyebrow mb-2">Suggested questions</p>
+      <div className="flex flex-col gap-1.5">
         {questions.map((question) => (
           <button
             key={question}
             type="button"
             disabled={disabled}
             onClick={() => onSelect(question)}
-            className="rounded-full border border-line bg-surface px-2.5 py-1 text-left text-xs text-content transition-colors hover:border-brand hover:text-brand disabled:opacity-50"
+            className="group flex items-center justify-between gap-2 rounded-md border border-line bg-surface px-2.5 py-1.5 text-left text-xs text-content transition-colors hover:border-content/35 hover:bg-raised/60 disabled:opacity-50"
           >
             {question}
+            <span className="font-mono text-muted transition-colors group-hover:text-brand" aria-hidden="true">
+              →
+            </span>
           </button>
         ))}
       </div>

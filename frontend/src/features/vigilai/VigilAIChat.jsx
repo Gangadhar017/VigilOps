@@ -55,12 +55,12 @@ export function VigilAIChat({ messages, suggestions, sending, error, maxLength =
         {messages.map((message) => (
           <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
-              className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm ${
-                message.role === 'user' ? 'rounded-br-sm bg-brand text-white dark:text-slate-900' : 'rounded-bl-sm border border-line bg-raised/70 text-content'
+              className={`max-w-[88%] rounded-lg px-3 py-2 text-[13px] leading-5 ${
+                message.role === 'user' ? 'rounded-br-[3px] bg-content text-canvas' : 'rounded-bl-[3px] border border-line bg-raised/60 text-content'
               }`}
             >
               {message.notice ? (
-                <p className="mb-2 flex items-start gap-1.5 rounded-md border border-warn/40 bg-warn/10 px-2 py-1 text-xs text-content">
+                <p className="mb-2 flex items-start gap-1.5 rounded border border-l-2 border-warn/30 border-l-warn bg-warn/[0.08] px-2 py-1 text-xs text-content">
                   <Info size={13} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />
                   {message.notice}
                 </p>
@@ -73,16 +73,16 @@ export function VigilAIChat({ messages, suggestions, sending, error, maxLength =
 
         {sending ? (
           <div className="flex justify-start" role="status" aria-label="VigilAI is preparing an answer">
-            <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm border border-line bg-raised/70 px-3 py-3">
+            <div className="flex items-center gap-1 rounded-lg rounded-bl-[3px] border border-line bg-raised/60 px-3 py-3">
               {[0, 1, 2].map((dot) => (
-                <span key={dot} className="typing-dot h-1.5 w-1.5 rounded-full bg-muted" style={{ animationDelay: `${dot * 0.15}s` }} />
+                <span key={dot} className="typing-dot h-1.5 w-1.5 rounded-[1px] bg-brand" style={{ animationDelay: `${dot * 0.15}s` }} />
               ))}
             </div>
           </div>
         ) : null}
 
         {error ? (
-          <div role="alert" className="flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-content">
+          <div role="alert" className="flex items-start gap-2 rounded-md border border-l-2 border-danger/30 border-l-danger bg-danger/[0.07] px-3 py-2 text-[13px] text-content">
             <AlertCircle size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden="true" />
             <div className="flex-1">
               <p>{error}</p>
@@ -124,13 +124,13 @@ export function VigilAIChat({ messages, suggestions, sending, error, maxLength =
               }
             }}
             placeholder="Ask about VigilOps…"
-            className="input max-h-28 min-h-[38px] resize-none"
+            className="input max-h-28 min-h-[36px] resize-none"
           />
-          <button type="submit" className="btn-primary h-[38px] px-3" disabled={sending || !draft.trim()} aria-label="Send message">
+          <button type="submit" className="btn-primary w-9 shrink-0 px-0" disabled={sending || !draft.trim()} aria-label="Send message">
             <Send size={16} />
           </button>
         </div>
-        <p className="mt-1.5 text-[11px] text-muted">VigilAI is read-only and answers only VigilOps questions. Enter to send, Shift+Enter for a new line.</p>
+        <p className="mt-1.5 text-[11px] leading-4 text-muted">VigilAI is read-only and answers only VigilOps questions. Enter to send, Shift+Enter for a new line.</p>
       </form>
     </>
   );
