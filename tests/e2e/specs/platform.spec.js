@@ -100,7 +100,10 @@ test.describe('VigilAI floating assistant', () => {
 
     await input.fill('What does SEC-001 mean?');
     await input.press('Enter');
-    await expect(chat.getByText(/public access/i).first()).toBeVisible();
+    // With a live AI provider the answer can be slow: when the provider itself times
+    // out, VigilAI answers from the documentation only after its bounded retry
+    // (22 s was observed). Either way the answer names public access.
+    await expect(chat.getByText(/public access/i).first()).toBeVisible({ timeout: 50_000 });
 
     await input.fill('Tell me a joke.');
     await input.press('Enter');
