@@ -118,13 +118,13 @@ export default function AuditLogs() {
           <SearchInput value={search} onChange={change(setSearch)} placeholder="Search action, actor, resource or metadata" label="Search audit events" />
           <SelectFilter label="Category" value={category} onChange={change(setCategory)} options={(meta.data?.categories || []).map((c) => ({ value: c.key, label: c.label }))} />
           <SelectFilter label="Outcome" value={outcome} onChange={change(setOutcome)} options={meta.data?.outcomes || ['SUCCESS', 'FAILURE', 'DENIED']} />
-          <label className="flex items-center gap-2 text-xs text-muted">
+          <label className="eyebrow flex items-center gap-2">
             From
-            <input type="date" className="input w-auto py-1.5" value={dateFrom} max={dateTo || undefined} onChange={(event) => change(setDateFrom)(event.target.value)} />
+            <input type="date" className="input w-auto font-sans normal-case tracking-normal" value={dateFrom} max={dateTo || undefined} onChange={(event) => change(setDateFrom)(event.target.value)} />
           </label>
-          <label className="flex items-center gap-2 text-xs text-muted">
+          <label className="eyebrow flex items-center gap-2">
             To
-            <input type="date" className="input w-auto py-1.5" value={dateTo} min={dateFrom || undefined} onChange={(event) => change(setDateTo)(event.target.value)} />
+            <input type="date" className="input w-auto font-sans normal-case tracking-normal" value={dateTo} min={dateFrom || undefined} onChange={(event) => change(setDateTo)(event.target.value)} />
           </label>
         </FilterBar>
         {data ? <InlineError message={error} onRetry={reload} className="m-3" /> : null}
@@ -174,7 +174,7 @@ export default function AuditLogs() {
               <dt>Source address</dt>
               <dd className="font-mono text-xs">{selected.source_ip || '—'}</dd>
             </dl>
-            <h3 className="mb-1.5 mt-4 text-xs font-semibold uppercase tracking-wide text-muted">Metadata</h3>
+            <h3 className="mb-1.5 mt-4 eyebrow">Metadata</h3>
             <pre className="mono-block">{JSON.stringify(selected.metadata || {}, null, 2)}</pre>
           </>
         ) : null}

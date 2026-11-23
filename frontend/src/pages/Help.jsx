@@ -162,7 +162,7 @@ export default function Help() {
         </section>
       </div>
 
-      <h2 className="mb-3 mt-6 text-sm font-semibold text-content">Guided workflows</h2>
+      <h2 className="section-title mt-8">Guided workflows</h2>
       <div className="grid gap-4 lg:grid-cols-2">
         {WORKFLOWS.map((workflow) => (
           <section key={workflow.title} className="card">

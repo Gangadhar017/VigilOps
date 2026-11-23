@@ -82,7 +82,7 @@ export default function Monitoring() {
               role="tab"
               aria-selected={resource.job === job}
               onClick={() => setJob(resource.job)}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium ${
+              className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium ${
                 resource.job === job ? 'border-brand bg-brand/10 text-content' : 'border-line bg-surface text-muted hover:text-content'
               }`}
             >
@@ -91,7 +91,7 @@ export default function Monitoring() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1" role="group" aria-label="Time range">
+        <div className="flex items-center gap-1 rounded-md border border-line bg-surface p-1" role="group" aria-label="Time range">
           {RANGES.map((option) => (
             <button
               key={option.key}

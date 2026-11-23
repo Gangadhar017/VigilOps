@@ -183,7 +183,7 @@ export default function FindingDetail() {
                 <ul className="space-y-2">
                   {finding.remediation_requests.map((request) => (
                     <li key={request.id}>
-                      <Link to={`/remediation/${request.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 hover:border-brand/50">
+                      <Link to={`/remediation/${request.id}`} className="flex items-center justify-between gap-2 rounded-md border border-line px-3 py-2 hover:border-brand/50">
                         <span className="text-sm text-content">
                           #{request.id} · {request.action_code}
                         </span>

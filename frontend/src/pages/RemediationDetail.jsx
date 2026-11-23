@@ -51,22 +51,22 @@ function Stepper({ status }) {
   const terminalFailure = ['FAILED', 'REJECTED', 'CANCELLED'].includes(status);
   const currentIndex = STEPS.indexOf(status);
   return (
-    <ol className="flex flex-wrap items-center gap-x-1 gap-y-2" aria-label="Workflow progress">
+    <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-2" aria-label="Workflow progress">
       {STEPS.map((step, index) => {
         const done = !terminalFailure && currentIndex > index;
         const current = !terminalFailure && currentIndex === index;
         const success = step === 'SUCCEEDED' && current;
         return (
-          <li key={step} className="flex items-center gap-1">
+          <li key={step} className="flex items-center gap-1.5">
             <span
-              className={`flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-medium ${
-                done || success ? 'border-ok/40 bg-ok/10 text-ok' : current ? 'border-brand/50 bg-brand/10 text-brand' : 'border-line text-muted'
+              className={`flex items-center gap-1.5 rounded border px-1.5 py-1 font-mono text-[10.5px] font-medium uppercase leading-none tracking-[0.06em] ${
+                done || success ? 'border-ok/30 bg-ok/10 text-ok' : current ? 'border-brand/50 bg-brand/10 text-brand' : 'border-line text-muted'
               }`}
             >
-              {done || success ? <Check size={12} aria-hidden="true" /> : current && IN_FLIGHT.includes(step) ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Circle size={10} aria-hidden="true" />}
+              {done || success ? <Check size={11} strokeWidth={2.5} aria-hidden="true" /> : current && IN_FLIGHT.includes(step) ? <Loader2 size={11} className="animate-spin" aria-hidden="true" /> : <Circle size={8} aria-hidden="true" />}
               {titleCase(step)}
             </span>
-            {index < STEPS.length - 1 ? <span className="h-px w-3 bg-line" aria-hidden="true" /> : null}
+            {index < STEPS.length - 1 ? <span className={`h-px w-4 ${done ? 'bg-ok/50' : 'bg-line'}`} aria-hidden="true" /> : null}
           </li>
         );
       })}
@@ -89,7 +89,7 @@ function Checks({ result }) {
       </p>
       <ul className="space-y-2">
         {result.checks.map((check) => (
-          <li key={check.name} className="flex items-start gap-2 rounded-lg border border-line px-3 py-2">
+          <li key={check.name} className="flex items-start gap-2 rounded-md border border-line px-3 py-2">
             {check.passed ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-ok" aria-label="passed" /> : <XCircle size={15} className="mt-0.5 shrink-0 text-danger" aria-label="failed" />}
             <div className="min-w-0">
               <p className="text-sm font-medium text-content">{titleCase(check.name)}</p>
@@ -109,7 +109,7 @@ function Execution({ execution }) {
   const details = execution.execution_details || {};
   const duration = execution.completed_at ? (new Date(execution.completed_at) - new Date(execution.started_at)) / 1000 : null;
   return (
-    <article className="rounded-lg border border-line">
+    <article className="rounded-md border border-line">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-raised/50 px-3 py-2">
         <p className="text-sm font-medium text-content">
           Attempt {execution.attempt} · <span className="font-mono text-xs">{execution.worker_identifier}</span>
@@ -122,12 +122,12 @@ function Execution({ execution }) {
       </header>
       <div className="space-y-4 p-3">
         {execution.error ? (
-          <p role="alert" className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-content">
+          <p role="alert" className="rounded-md border border-l-2 border-danger/30 border-l-danger bg-danger/[0.07] px-3 py-2 text-[13px] text-content">
             {execution.error}
           </p>
         ) : null}
         <div>
-          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Execution</h4>
+          <h4 className="mb-1.5 eyebrow">Execution</h4>
           {details.operation ? <p className="text-sm text-content">{details.operation}</p> : null}
           {details.changes ? (
             <ul className="mt-1 list-disc pl-5 text-sm text-content">
@@ -175,7 +175,7 @@ function Execution({ execution }) {
           {!details.operation && !execution.error ? <p className="text-sm text-muted">The action is running…</p> : null}
         </div>
         <div>
-          <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Verification</h4>
+          <h4 className="mb-1.5 eyebrow">Verification</h4>
           {execution.status === 'VERIFYING' ? (
             <p className="flex items-center gap-2 text-sm text-content">
               <Loader2 size={15} className="animate-spin text-brand" aria-hidden="true" /> Collecting fresh evidence that the problem is gone…
@@ -359,13 +359,13 @@ export default function RemediationDetail() {
               </div>
               <div className="card-body text-sm">
                 <p className="text-content">{request.action.description}</p>
-                <h3 className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-muted">Steps</h3>
+                <h3 className="mb-1 mt-3 eyebrow">Steps</h3>
                 <ul className="list-disc space-y-1 pl-5 text-xs text-content">
                   {request.action.steps.map((step) => (
                     <li key={step}>{step}</li>
                   ))}
                 </ul>
-                <h3 className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-muted">Verification</h3>
+                <h3 className="mb-1 mt-3 eyebrow">Verification</h3>
                 <ul className="list-disc space-y-1 pl-5 text-xs text-content">
                   {request.action.verification.map((check) => (
                     <li key={check}>{check}</li>

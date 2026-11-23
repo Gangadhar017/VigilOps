@@ -202,17 +202,17 @@ export default function IncidentDetail() {
             <p className="mb-3 text-sm text-content">{recommendation.problem}</p>
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Possible causes</h3>
+                <h3 className="mb-1.5 eyebrow">Possible causes</h3>
                 <BulletList items={recommendation.possible_causes} />
               </div>
               <div>
-                <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Recommended steps</h3>
+                <h3 className="mb-1.5 eyebrow">Recommended steps</h3>
                 <BulletList items={recommendation.recommended_steps} />
               </div>
             </div>
             {recommendation.troubleshooting?.length ? (
               <div className="mt-4">
-                <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Troubleshooting notes</h3>
+                <h3 className="mb-1.5 eyebrow">Troubleshooting notes</h3>
                 <BulletList items={recommendation.troubleshooting} />
               </div>
             ) : null}
@@ -254,7 +254,7 @@ export default function IncidentDetail() {
               <ul className="space-y-2">
                 {incident.remediation_requests.map((request) => (
                   <li key={request.id}>
-                    <Link to={`/remediation/${request.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2 hover:border-brand/50">
+                    <Link to={`/remediation/${request.id}`} className="flex items-center justify-between gap-2 rounded-md border border-line px-3 py-2 hover:border-brand/50">
                       <span className="text-sm text-content">
                         #{request.id} · {request.action_code}
                       </span>

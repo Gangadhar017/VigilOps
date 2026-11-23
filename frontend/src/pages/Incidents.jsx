@@ -65,7 +65,7 @@ export default function Incidents() {
     },
     { key: 'severity', header: 'Severity', sortable: true, render: (row) => <StatusBadge status={row.severity} /> },
     { key: 'status', header: 'Status', sortable: true, render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'affected_resource', header: 'Resource' },
+    { key: 'affected_resource', header: 'Resource', className: 'whitespace-nowrap' },
     {
       key: 'detected_at',
       header: 'Detected',
