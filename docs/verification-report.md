@@ -11,10 +11,10 @@ This report records what was actually run and what happened. Anything that was n
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend tests, SQLite | `cd backend && pytest` | **245 passed**, 5 skipped (4 need PostgreSQL, 1 needs symlink rights on Windows) |
-| Backend tests, PostgreSQL 16 | `TEST_DATABASE_URL=postgresql://… pytest` | **249 passed**, 1 skipped (symlink test on Windows) |
+| Backend tests, SQLite | `cd backend && pytest` | **254 passed**, 5 skipped (4 need PostgreSQL, 1 needs symlink rights on Windows) |
+| Backend tests, PostgreSQL 16 | `TEST_DATABASE_URL=postgresql://… pytest` | **249 passed**, 1 skipped (symlink test on Windows), run locally before the nine hosted-profile tests of section 8 were added; with them the suite passes in the PostgreSQL job of CI run 45181978988 |
 | Backend lint | `ruff check app tests alembic` | clean |
-| Frontend tests | `cd frontend && npm test` | **21 passed** |
+| Frontend tests | `cd frontend && npm test` | **24 passed** |
 | Frontend production build | `npm run build` | succeeded |
 | Stack health and exposure | `sh scripts/verify_stack.sh` | **20 of 20** checks passed |
 | End-to-end demonstrations 1–3 (API level, fresh installation) | `python scripts/run_e2e_demos.py` | **55 of 55** checks passed; 0 error-level log lines in backend and worker |
@@ -28,8 +28,10 @@ This report records what was actually run and what happened. Anything that was n
 | Compose files | `docker compose config` (local and production overlay) | valid |
 | GitHub Actions workflow on a GitHub-hosted Ubuntu runner (run 45170977487, commit `fc5bb92`, push to `main`) | `.github/workflows/ci.yml` | **5 of 5 jobs succeeded**: backend lint and tests on SQLite, the same on PostgreSQL 16, frontend tests and build, configuration validation, and the full stack (built in 48 s, `verify_stack.sh`, then the three demonstrations in 237 s) |
 
-All rows except the last were run on the Windows 11 host described above. The CI run had no Gemini key,
-so its VigilAI demonstration ran in documentation mode.
+| GitHub Actions run 45181978988 (commit `498988d`), with the added job for the single-container image | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded**, among them "Single-container image under free-tier limits": the image of section 8 built on the Ubuntu runner, started with 512 MB and 0.1 CPU, and passed the exposure checks and the three demonstrations (5 min 41 s for the job) |
+
+All rows except the two CI rows were run on the Windows 11 host described above. The CI runs had no
+Gemini key, so their VigilAI demonstration ran in documentation mode.
 
 ## 2. Verification by phase
 
@@ -175,3 +177,48 @@ Real provider failures, produced by starting the backend with a wrong setting an
 
 Limits of this verification: one model, a small question set, grounding judged by keyword checks and by
 reading the answers. A real quota error and a real timeout were not observed.
+
+## 8. Free-hosting deployment (Render and Vercel)
+
+The single-container image of [`deployment-render-vercel.md`](deployment-render-vercel.md) was verified
+on 2026-11-23 on the Windows host, in a container limited to what Render's free plan documents for a web
+service: `docker run --memory=512m --memory-swap=512m --cpus=0.1`, next to a PostgreSQL 16 container, with
+the settings of `render.yaml`.
+
+| Check | Result |
+|---|---|
+| Image builds (`docker build -f deploy/render/Dockerfile .`) | yes, about 156 MB |
+| All five components start and stay up | yes; no component was restarted by the launcher in any run |
+| Start-up at 0.1 CPU, database already migrated (two starts) | public port answered 23 s and 36 s after the container started; all components running after 44 s and 53 s |
+| Memory | 182 MiB after start; 228 to 264 MiB during and after the demonstrations; 241 to 255 MiB with the Gemini client loaded; limit 512 MiB |
+| CPU when nobody uses it | about 19 ms of CPU per second in total (limit 100 ms per second), measured with the synthetic load at two requests per second; `render.yaml` halves that load |
+| Response times at 0.1 CPU | overview 0.1 to 0.3 s, incident list 0.2 s, monitoring overview 0.9 s, sign-in 4.8 s (10 s in the first seconds after a start) |
+| The three demonstrations (`run_e2e_demos.py --base-url http://127.0.0.1:10000`) | **54 of 54** checks passed; 0 error-level log lines. One check of the Compose run is not made here: it reads Alertmanager's failed-delivery counter from Prometheus, which is not reachable from outside this container |
+| Timings in that run | outage to scrape target down 5.0 s; outage to incident 25.1 s; repeated notification after 137 s; ACTION-001 17.4 s; ACTION-002 3.1 s |
+| VigilAI with the real Gemini key inside the limited container | `ai` mode; first answer after a start 5.0 s, the next 2.5 s (the first took 23 s before the client was loaded in the background at start-up) |
+| Outside callers: `/metrics`, `/health/ready`, `/docs`, `/openapi.json` | HTTP 404 each |
+| Outside callers: `/health/live`, `/api/health`, `/api/version` | status or project title only |
+| Demo controls | enabled for the Administrator; `outage`, `errors`, `latency` offered; `cpu` and `memory` listed as switched off |
+| Scan workspace | directory `drwxr-s--- vigilworker vigilops`, file `-rw-r----- vigilworker vigilops`; as the API's user: reading works, creating or changing a file is refused ("Permission denied") |
+| As the API's user: read the Alertmanager token file, write into the application code | both refused |
+| Secrets passed to each process (from the launcher) | API: `SECRET_KEY`, webhook token, control token, bootstrap passwords, `DATABASE_URL` (and the Gemini key when set); worker: `DATABASE_URL`, recovery token; demonstration application: the two demo tokens; Prometheus and Alertmanager: none |
+| Host that does not allow switching users (container started as a non-root user; started as root without the SETUID, SETGID and CHOWN capabilities) | in both cases the launcher logs its warning, runs every component as the current user, and reset, scan and monitoring work |
+| Compose stack after the same code changes | `verify_stack.sh` 20 of 20; browser tests 9 passed |
+
+Automated tests added with this work: 9 backend tests in `backend/tests/integration/test_hosted_profile.py`
+(the suite is now 254 passed, 5 skipped on SQLite) and 3 frontend tests for the sign-in page while the
+server is starting (24 in total). The CI workflow has a new job that builds the image, runs it with the
+same limits and runs the three demonstrations against it.
+
+Defects found while doing this, and fixed:
+
+| Defect | Found by | Fix |
+|---|---|---|
+| At 0.1 CPU the public port opened only 75 s after the container started | timing the limited container | migrations run inside the API process instead of a second interpreter; application bytecode compiled into the image; a bcrypt hash that was computed at import is computed on first use |
+| The first VigilAI answer after a start took 23 s at 0.1 CPU, close to the browser's 25 s request timeout | asking a live question in the limited container | the AI client is loaded in the background at start-up; the chat request has a 60 s timeout |
+| Sign-in attempts were limited only per client address, which an outside caller can forge when no trusted proxy is in front of the API | review of the public surface | additional limit per e-mail address, whatever the client address |
+| In production mode a bootstrap password that failed the policy was skipped with a log line, leaving an instance nobody could sign in to | review of the Blueprint flow, where the passwords are typed by hand | the API refuses to start and names the variable |
+
+Not verified here: the behaviour of the real platforms (Render's wake-up time and CPU share, its
+Blueprint flow, Vercel's forwarding and time limit). Those figures in the guide come from the providers'
+documentation. The status of the actual deployment is recorded below.
