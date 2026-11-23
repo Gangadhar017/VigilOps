@@ -1,0 +1,53 @@
+# VigilOps reverse proxy (Caddy)
+#
+# The only public entry point of the platform:
+#   /api/*      -> FastAPI backend (internal network)
+#   everything else -> the React single-page application
+#
+# Only paths under /api/ reach the backend (including the unauthenticated
+# /api/health and /api/version, which disclose only a status in production).
+# The backend's /metrics, /docs, /openapi.json and /health/*, Prometheus,
+# Alertmanager, PostgreSQL and the worker are NOT reachable through this proxy.
+#
+# SITE_ADDRESS
+#   local (default)  ":80"                 plain HTTP behind http://localhost:8080
+#   production       "vigilops.example.com"  Caddy obtains and renews a TLS certificate
+#                                            automatically and redirects HTTP to HTTPS
+{
+	admin off
+}
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		# Honoured by browsers over HTTPS only; ignored on the plain-HTTP local stack.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+
+	# Simple check for load balancers / uptime monitors (does not touch the backend).
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv/www
+		# Hashed build assets can be cached for a long time; index.html must not be.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@html path / /index.html
+		header @html Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
