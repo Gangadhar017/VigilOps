@@ -1,81 +1,228 @@
-import os
-import sys
+"""VigilOps API application."""
+from __future__ import annotations
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
-
+import logging
+import time
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from typing import Any, Dict
 
-from backend.app.core.config import settings
-from backend.app.core.database import init_db, SessionLocal
-from backend.app.api.auth import router as auth_router
-from backend.app.api.resources import router as resources_router
-from backend.app.api.incidents import router as incidents_router
-from backend.app.api.findings import router as findings_router
-from backend.app.api.monitoring import router as monitoring_router
-from backend.app.api.remediation import router as remediation_router
-from backend.app.api.audit import router as audit_router
-from backend.app.seed import seed_database
+from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from sqlalchemy import inspect
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.api.router import api_router
+from app.core.config import settings
+from app.core.database import SessionLocal, check_database, engine
+from app.core.logging import configure_logging
+from app.core.metrics import HTTP_DURATION, HTTP_REQUESTS
+from app.core.request_context import get_request_id, new_request_id, set_request_context
+from app.services.bootstrap import run_bootstrap
+from app.services.dashboard_service import refresh_gauges
+
+configure_logging(settings.LOG_LEVEL, settings.LOG_FORMAT)
+logger = logging.getLogger("vigilops.api")
+access_logger = logging.getLogger("vigilops.access")
+
+_started_at = time.time()
+_state: Dict[str, Any] = {"bootstrapped": False}
+
+
+def schema_ready() -> bool:
+    """Have the database migrations been applied?"""
+    try:
+        return inspect(engine).has_table("users")
+    except Exception:  # noqa: BLE001
+        return False
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Initialize schema
-    init_db()
-    # Seed default Admin, Operator, and initial resources
-    db = SessionLocal()
-    try:
-        seed_database(db)
-    finally:
-        db.close()
+async def lifespan(_app: FastAPI):
+    if settings.uses_placeholder_secrets():
+        logger.warning(
+            "placeholder secrets from .env.example are in use; acceptable for local "
+            "development only - generate real values before any shared deployment"
+        )
+    if schema_ready():
+        with SessionLocal() as db:
+            run_bootstrap(db)
+            refresh_gauges(db)
+        _state["bootstrapped"] = True
+    else:
+        logger.error("database schema missing: run 'alembic upgrade head' before starting the API")
+    logger.info(
+        "vigilops api started",
+        extra={
+            "environment": settings.ENVIRONMENT,
+            "version": settings.VERSION,
+            "demo_controls": settings.demo_controls_active,
+            "ai_provider": settings.AI_PROVIDER,
+            "ai_configured": settings.ai_configured,
+        },
+    )
     yield
 
+
 app = FastAPI(
-    title="CloudShield API",
-    description="Unified Platform for Cloud Monitoring, Security Assessment, and Auto-Remediation",
+    title="VigilOps API",
+    description=(
+        "VigilOps: Secure Cloud Operations - monitoring, incident management, security "
+        "configuration scanning, controlled remediation, audit logging and the VigilAI assistant."
+    ),
     version=settings.VERSION,
-    lifespan=lifespan
+    lifespan=lifespan,
+    docs_url="/docs" if settings.api_docs_enabled else None,
+    redoc_url=None,
+    openapi_url="/openapi.json" if settings.api_docs_enabled else None,
 )
 
-# CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Permits local dev frontends
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if settings.cors_origin_list:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        expose_headers=["X-Request-ID"],
+    )
 
-# Health & Version Check Endpoints
-@app.get("/api/health", tags=["System"])
-def health_check():
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    """Correlation id, structured access log and Prometheus instrumentation."""
+    request_id = new_request_id(request.headers.get("x-request-id"))
+    client_ip = request.client.host if request.client else None
+    set_request_context(request_id, client_ip)
+    started = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    finally:
+        duration = time.perf_counter() - started
+        route = request.scope.get("route")
+        # Use the route template (never the raw URL) to keep label cardinality bounded.
+        path = getattr(route, "path", None) or "unmatched"
+        if path != "/metrics":
+            HTTP_REQUESTS.labels(method=request.method, path=path, status=str(status_code)).inc()
+            HTTP_DURATION.labels(method=request.method, path=path).observe(duration)
+            if not path.startswith("/health"):
+                access_logger.info(
+                    "request",
+                    extra={
+                        "method": request.method,
+                        "path": request.url.path,
+                        "status": status_code,
+                        "duration_ms": round(duration * 1000, 1),
+                        "client_ip": client_ip,
+                    },
+                )
+    response.headers["X-Request-ID"] = request_id
+    if request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-store"
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Error handling: consistent JSON, no stack traces to clients
+# ---------------------------------------------------------------------------
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(_request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "request_id": get_request_id()},
+        headers=getattr(exc, "headers", None),
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request: Request, exc: RequestValidationError):
+    errors = [
+        {
+            "field": ".".join(str(part) for part in error.get("loc", []) if part != "body"),
+            "message": error.get("msg", "invalid value"),
+        }
+        for error in exc.errors()
+    ]
+    summary = "; ".join(f"{e['field']}: {e['message']}" if e["field"] else e["message"] for e in errors[:3])
+    return JSONResponse(
+        status_code=422,
+        content={"detail": summary or "Invalid request.", "errors": errors, "request_id": get_request_id()},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request: Request, exc: Exception):
+    logger.exception("unhandled error", extra={"error": exc.__class__.__name__})
+    # This handler runs outside the request middleware, so set its headers here.
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error.", "request_id": get_request_id()},
+        headers={"X-Request-ID": get_request_id() or "", "Cache-Control": "no-store"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Health and metrics (not under /api; /metrics is never routed by the reverse proxy)
+# ---------------------------------------------------------------------------
+@app.get("/health/live", tags=["Health"], summary="Liveness probe")
+def health_live() -> Dict[str, Any]:
+    """The process is running.  Does not check dependencies."""
+    return {"status": "alive", "service": settings.PROJECT_NAME, "version": settings.VERSION}
+
+
+@app.get("/health/ready", tags=["Health"], summary="Readiness probe")
+def health_ready(response: Response) -> Dict[str, Any]:
+    """Ready to serve traffic: database reachable and migrations applied."""
+    database_ok, database_error = check_database()
+    schema_ok = database_ok and schema_ready()
+    if schema_ok and not _state["bootstrapped"]:
+        with SessionLocal() as db:
+            run_bootstrap(db)
+        _state["bootstrapped"] = True
+    ready = database_ok and schema_ok
+    if not ready:
+        response.status_code = 503
     return {
-        "status": "healthy",
+        "status": "ready" if ready else "not_ready",
+        "checks": {
+            "database": {"ok": database_ok, "error": database_error},
+            "schema": {"ok": schema_ok},
+        },
+    }
+
+
+@app.get("/api/health", tags=["Health"], summary="Combined health summary")
+def api_health(response: Response) -> Dict[str, Any]:
+    result = health_ready(response)
+    if settings.is_production:
+        # Reachable without authentication: disclose nothing but the status.
+        return {"status": "healthy" if result["status"] == "ready" else "unhealthy"}
+    return {
+        "status": "healthy" if result["status"] == "ready" else "unhealthy",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "environment": settings.ENVIRONMENT
-    }
-
-@app.get("/api/version", tags=["System"])
-def version_check():
-    return {
-        "version": settings.VERSION,
         "environment": settings.ENVIRONMENT,
-        "project": settings.PROJECT_NAME
+        "uptime_seconds": round(time.time() - _started_at, 1),
+        "checks": result["checks"],
     }
 
-# Register Routers
-app.include_router(auth_router)
-app.include_router(resources_router)
-app.include_router(incidents_router)
-app.include_router(findings_router)
-app.include_router(monitoring_router)
-app.include_router(remediation_router)
-app.include_router(audit_router)
 
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", settings.BACKEND_PORT))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+@app.get("/api/version", tags=["Health"])
+def api_version() -> Dict[str, Any]:
+    if settings.is_production:
+        return {"project": settings.PROJECT_TITLE}
+    return {"project": settings.PROJECT_TITLE, "version": settings.VERSION, "environment": settings.ENVIRONMENT}
+
+
+@app.get("/metrics", include_in_schema=False)
+def metrics() -> Response:
+    """Prometheus exposition endpoint (scraped over the internal network only)."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+app.include_router(api_router)
