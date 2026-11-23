@@ -3,50 +3,69 @@
 @tailwind utilities;
 
 /* ---------------------------------------------------------------------------
-   Theme tokens (RGB triplets so Tailwind can apply opacity).
-   Brand: deep navy surfaces with a teal accent.
+   VigilOps visual system
+
+   Near-black console chrome, a paper-coloured light theme, one signal-lime
+   accent, IBM Plex Sans for text and IBM Plex Mono for the small uppercase
+   labels, identifiers and figures.  Corners are small and surfaces are
+   separated by hairlines rather than shadows.
+
+   Tokens are RGB triplets so Tailwind can apply opacity.
    --------------------------------------------------------------------------- */
 :root {
-  --canvas: 244 247 251;
+  /* light theme ("paper") */
+  --canvas: 244 242 235;
   --surface: 255 255 255;
-  --raised: 241 245 249;
-  --line: 222 229 238;
-  --content: 15 28 48;
-  --muted: 92 107 130;
-  --brand: 13 148 136;
-  --brand-strong: 15 118 110;
-  --brand-soft: 204 251 241;
-  --ok: 22 163 74;
-  --warn: 202 138 4;
-  --danger: 220 38 38;
-  --info: 37 99 235;
+  --raised: 238 235 226;
+  --line: 219 215 203;
+  --content: 16 20 15;
+  --muted: 91 98 86;
+  --brand: 58 107 16;
+  --brand-strong: 42 80 10;
+  --brand-soft: 228 243 196;
+  --ok: 18 128 76;
+  --warn: 161 102 0;
+  --danger: 200 40 40;
+  --info: 30 94 200;
+
+  /* the same in both themes */
+  --accent: 200 241 53;
+  --accent-ink: 12 15 10;
+  --chrome: 13 16 14;
+  --chrome-raised: 27 32 28;
+  --chrome-line: 39 45 40;
+  --chrome-text: 236 239 232;
+  --chrome-muted: 142 150 139;
   color-scheme: light;
 }
 
 .dark {
-  --canvas: 9 16 30;
-  --surface: 15 26 46;
-  --raised: 22 36 62;
-  --line: 38 54 86;
-  --content: 226 234 245;
-  --muted: 142 158 184;
-  --brand: 45 212 191;
-  --brand-strong: 94 234 212;
-  --brand-soft: 19 58 66;
-  --ok: 74 222 128;
-  --warn: 250 204 21;
-  --danger: 248 113 113;
-  --info: 96 165 250;
+  /* dark theme ("night") */
+  --canvas: 10 12 11;
+  --surface: 17 20 18;
+  --raised: 25 29 26;
+  --line: 38 43 39;
+  --content: 236 239 232;
+  --muted: 139 147 136;
+  --brand: 200 241 53;
+  --brand-strong: 217 248 106;
+  --brand-soft: 36 44 16;
+  --ok: 62 207 142;
+  --warn: 242 181 68;
+  --danger: 255 99 99;
+  --info: 104 170 255;
   color-scheme: dark;
 }
 
 @layer base {
   html {
     @apply h-full;
+    -webkit-text-size-adjust: 100%;
   }
   body {
     @apply min-h-full bg-canvas font-sans text-sm text-content antialiased;
   }
+  /* (The monospace face is configured with a slashed zero in tailwind.config.js.) */
   #root {
     @apply min-h-screen;
   }
@@ -57,74 +76,140 @@
     @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-canvas;
   }
   ::selection {
-    background: rgb(var(--brand) / 0.3);
+    background: rgb(var(--accent) / 0.45);
+    color: rgb(var(--content));
   }
-  code, pre {
+  code, pre, kbd {
     @apply font-mono;
+  }
+  /* Thin, themed scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--line));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
   }
 }
 
 @layer components {
+  /* ---- text roles ------------------------------------------------------- */
+  /* Small uppercase monospace label: section names, table headers, captions. */
+  .eyebrow {
+    @apply font-mono text-[10.5px] font-medium uppercase leading-4 tracking-[0.12em] text-muted;
+  }
+  /* A headline figure. */
+  .stat {
+    @apply text-[30px] font-semibold leading-none tracking-tight tabular-nums;
+  }
+  /* Section heading outside a card, followed by a hairline. */
+  .section-title {
+    @apply mb-3 flex items-center gap-3 font-mono text-[10.5px] font-medium uppercase tracking-[0.12em] text-muted;
+  }
+  .section-title::after {
+    content: '';
+    @apply h-px flex-1 bg-line;
+  }
+
+  /* ---- surfaces --------------------------------------------------------- */
   .card {
-    @apply rounded-xl border border-line bg-surface shadow-card;
+    @apply rounded-lg border border-line bg-surface shadow-card;
   }
   .card-header {
-    @apply flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3;
+    @apply flex min-h-[44px] flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2.5;
   }
   .card-title {
-    @apply text-sm font-semibold text-content;
+    @apply font-mono text-[11px] font-medium uppercase leading-4 tracking-[0.1em] text-content/85;
   }
   .card-body {
     @apply p-4;
   }
+  /* Faint dot grid used behind empty and introductory areas. */
+  .dotgrid {
+    background-image: radial-gradient(rgb(var(--muted) / 0.22) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+  /* The same grid on the dark navigation chrome (its colours do not follow the theme). */
+  .dotgrid-chrome {
+    background-image: radial-gradient(rgb(var(--chrome-muted) / 0.2) 1px, transparent 1px);
+    background-size: 18px 18px;
+    mask-image: linear-gradient(to bottom right, black 20%, transparent 85%);
+    -webkit-mask-image: linear-gradient(to bottom right, black 20%, transparent 85%);
+  }
 
+  /* ---- buttons ---------------------------------------------------------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3.5 text-[13px] font-medium transition-[background-color,border-color,color,opacity] duration-150 disabled:cursor-not-allowed disabled:opacity-45;
   }
   .btn-primary {
-    @apply btn bg-brand text-white hover:bg-brand-strong dark:text-slate-900;
+    @apply btn border border-accent-ink/25 bg-accent text-accent-ink hover:brightness-95 active:brightness-90;
   }
   .btn-secondary {
-    @apply btn border border-line bg-surface text-content hover:bg-raised;
+    @apply btn border border-line bg-surface text-content hover:border-content/30 hover:bg-raised;
   }
   .btn-danger {
-    @apply btn bg-danger text-white hover:opacity-90 dark:text-slate-900;
+    @apply btn border border-danger/60 bg-danger/10 text-danger hover:bg-danger hover:text-white dark:hover:text-accent-ink;
   }
   .btn-ghost {
     @apply btn text-muted hover:bg-raised hover:text-content;
   }
   .btn-sm {
-    @apply px-2.5 py-1.5 text-xs;
+    @apply h-[30px] px-2.5 text-xs;
   }
 
+  /* ---- form controls ---------------------------------------------------- */
   .input {
-    @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-content placeholder:text-muted/70 focus:border-brand disabled:opacity-60;
+    @apply min-h-[36px] w-full rounded-md border border-line bg-surface px-3 py-1.5 text-[13px] text-content transition-colors placeholder:text-muted/70 hover:border-content/25 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand disabled:opacity-60;
   }
   .label {
-    @apply mb-1 block text-xs font-medium text-muted;
+    @apply mb-1.5 block text-xs font-medium text-content/80;
   }
   .field-hint {
     @apply mt-1 text-xs text-muted;
   }
 
+  /* ---- status ----------------------------------------------------------- */
   .badge {
-    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded border px-1.5 py-[3px] font-mono text-[10.5px] font-medium uppercase leading-none tracking-[0.06em];
   }
   .tag {
-    @apply inline-flex items-center gap-1 rounded-md bg-raised px-1.5 py-0.5 text-[11px] font-medium text-muted;
+    @apply inline-flex items-center gap-1 rounded border border-line bg-raised/70 px-1.5 py-[3px] font-mono text-[10.5px] leading-none text-muted;
   }
 
+  /* ---- tables ----------------------------------------------------------- */
   .table-wrap {
     @apply overflow-x-auto;
   }
   .table {
-    @apply w-full border-collapse text-left text-sm;
+    @apply w-full border-collapse text-left text-[13px];
   }
   .table th {
-    @apply whitespace-nowrap border-b border-line bg-raised/60 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted;
+    @apply whitespace-nowrap border-b border-line px-3 py-2.5 font-mono text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted;
   }
   .table td {
-    @apply border-b border-line px-3 py-2.5 align-top;
+    @apply border-b border-line/70 px-3 py-2.5 align-top;
+  }
+  .table th:first-child,
+  .table td:first-child {
+    @apply pl-4;
+  }
+  .table th:last-child,
+  .table td:last-child {
+    @apply pr-4;
+  }
+  /* Identifiers and timestamps set in the monospace face never break across lines. */
+  .table td [class*='font-mono'] {
+    white-space: nowrap;
   }
   .table tbody tr:last-child td {
     @apply border-b-0;
@@ -133,21 +218,23 @@
     @apply cursor-pointer transition-colors hover:bg-raised/60;
   }
 
+  /* ---- tabs ------------------------------------------------------------- */
   .tab {
-    @apply -mb-px border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted hover:text-content;
+    @apply -mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-[13px] font-medium text-muted transition-colors hover:text-content;
   }
   .tab-active {
     @apply border-brand text-content;
   }
 
+  /* ---- data blocks ------------------------------------------------------ */
   .mono-block {
-    @apply max-h-80 overflow-auto rounded-lg border border-line bg-raised/60 p-3 font-mono text-xs leading-relaxed;
+    @apply max-h-80 overflow-auto rounded-md border border-line bg-raised/50 p-3 font-mono text-xs leading-relaxed;
   }
   .kv {
-    @apply grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-4 gap-y-2 text-sm;
+    @apply grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-4 gap-y-2.5 text-[13px];
   }
   .kv dt {
-    @apply text-muted;
+    @apply pt-px font-mono text-[10.5px] uppercase tracking-[0.08em] text-muted;
   }
   .kv dd {
     @apply min-w-0 break-words text-content;
