@@ -222,3 +222,10 @@ Defects found while doing this, and fixed:
 Not verified here: the behaviour of the real platforms (Render's wake-up time and CPU share, its
 Blueprint flow, Vercel's forwarding and time limit). Those figures in the guide come from the providers'
 documentation. The status of the actual deployment is recorded below.
+
+### Status of the deployment on Render and Vercel
+
+As of 2026-11-23 the Render Blueprint and the Vercel project had not been created: both have to be
+created from the owner's accounts, and the bootstrap passwords and the Gemini key have to be typed there
+by the owner. Until this paragraph is replaced by a record of the live deployment, treat the hosted
+deployment itself as UNVERIFIED; what is verified is the image and its configuration, as listed above.
