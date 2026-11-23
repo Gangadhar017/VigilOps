@@ -85,6 +85,57 @@ jobs:
           docker run --rm --entrypoint amtool -v "$PWD/monitoring:/etc/alertmanager:ro" -v /tmp/secrets:/run/secrets:ro \
             prom/alertmanager:v0.27.0 check-config /etc/alertmanager/alertmanager.yml
 
+  hosted-image:
+    name: Single-container image under free-tier limits
+    runs-on: ubuntu-latest
+    needs: [backend, configuration]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build the image used by render.yaml
+        run: docker build -f deploy/render/Dockerfile -t vigilops-hosted:ci .
+      - name: Start it with 512 MB and 0.1 CPU next to a PostgreSQL container
+        run: |
+          python scripts/generate_env.py            # bootstrap accounts and secrets for this run only
+          POSTGRES_PASSWORD="$(grep '^POSTGRES_PASSWORD=' .env | cut -d= -f2-)"
+          docker network create hosted
+          docker run -d --name pg --network hosted -e POSTGRES_USER=vigilops -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+            -e POSTGRES_DB=vigilops postgres:16-alpine
+          # Secrets and bootstrap accounts come from the generated .env (the launcher
+          # passes on only the variables each component needs); the -e values are the
+          # settings of render.yaml and take precedence over the file.
+          docker run -d --name hosted --network hosted --memory=512m --memory-swap=512m --cpus=0.1 \
+            -p 127.0.0.1:10000:10000 --env-file .env \
+            -e ENVIRONMENT=production -e DEMO_CONTROLS_ENABLED=true -e ALLOW_DEMO_CONTROLS_IN_PRODUCTION=true \
+            -e DEMO_DISABLED_FAULTS=cpu,memory -e INTERNAL_ENDPOINTS_LOCAL_ONLY=true \
+            -e MONITORING_HTTP_TIMEOUT_SECONDS=8 -e LOAD_INTERVAL_SECONDS=1 \
+            -e DATABASE_URL="postgresql://vigilops:${POSTGRES_PASSWORD}@pg:5432/vigilops" \
+            vigilops-hosted:ci
+      - name: Wait until every component is running
+        run: |
+          for i in $(seq 1 100); do
+            if docker logs hosted 2>&1 | grep -q "all components running"; then exit 0; fi
+            if ! docker ps --format '{{.Names}}' | grep -qx hosted; then break; fi
+            sleep 3
+          done
+          docker logs hosted; exit 1
+      - name: Internal endpoints are not public; health is
+        run: |
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/health/live)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/api/health)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/metrics)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/health/ready)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/docs)" = 404
+      - name: Run the three demonstrations against it
+        run: python scripts/run_e2e_demos.py --base-url http://127.0.0.1:10000 --no-save
+      - name: Memory in use and container log on failure
+        if: always()
+        run: |
+          docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' hosted || true
+          docker logs --tail=150 hosted || true
+
   stack:
     name: Full stack and end-to-end demonstrations
     runs-on: ubuntu-latest
