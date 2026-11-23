@@ -9,7 +9,9 @@ from app.core.database import Base
 from app.models import models  # noqa: F401  (registers every table on Base.metadata)
 
 config = context.config
-if config.config_file_name is not None:
+# When the API applies migrations itself at start-up (RUN_MIGRATIONS_ON_START) it
+# has already configured logging and asks for it to be left alone.
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Allow callers (tests) to override the URL; default to the application's setting.

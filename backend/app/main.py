@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict
@@ -39,8 +40,43 @@ def schema_ready() -> bool:
         return False
 
 
+def apply_migrations(attempts: int = 12, delay_seconds: float = 10.0, database_url: str = "") -> None:
+    """Run "alembic upgrade head" in this process (RUN_MIGRATIONS_ON_START).
+
+    A database created moments ago may not accept connections yet, so a failure
+    is retried for about two minutes before the start-up is abandoned.
+    ``database_url`` overrides the configured database (used by tests).
+    """
+    from pathlib import Path
+
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = Path(__file__).resolve().parents[1]
+    config = Config(str(backend_dir / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_dir / "alembic"))
+    config.attributes["configure_logger"] = False  # keep this process's logging setup
+    if database_url:
+        config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    for attempt in range(1, attempts + 1):
+        try:
+            command.upgrade(config, "head")
+            logger.info("database migrations applied")
+            return
+        except Exception as exc:  # noqa: BLE001 - reported, retried, then re-raised
+            logger.warning(
+                "database migration failed",
+                extra={"attempt": attempt, "of": attempts, "error": exc.__class__.__name__},
+            )
+            if attempt == attempts:
+                raise
+            time.sleep(delay_seconds)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    if settings.RUN_MIGRATIONS_ON_START:
+        apply_migrations()
     if settings.uses_placeholder_secrets():
         logger.warning(
             "placeholder secrets from .env.example are in use; acceptable for local "
@@ -53,6 +89,13 @@ async def lifespan(_app: FastAPI):
         _state["bootstrapped"] = True
     else:
         logger.error("database schema missing: run 'alembic upgrade head' before starting the API")
+    if settings.ai_configured:
+        # Load the AI client in the background now, so that the first question
+        # does not pay for importing the SDK (seconds on a small CPU share).
+        # No request is sent to the provider.
+        from app.assistant.providers import get_provider
+
+        threading.Thread(target=get_provider, name="ai-client-warmup", daemon=True).start()
     logger.info(
         "vigilops api started",
         extra={
@@ -90,6 +133,21 @@ if settings.cors_origin_list:
     )
 
 
+# Paths meant for the internal network only.  Behind the Compose reverse proxy
+# they are never routed; when the API port itself is public they are refused
+# here unless the caller is on the loopback interface (the bundled Prometheus).
+_INTERNAL_PATHS = ("/metrics", "/health/ready")
+
+
+def _is_local_caller(request: Request) -> bool:
+    # Anything that arrived through a proxy carries a forwarding header that the
+    # outside caller cannot remove, so its presence alone rules the request out.
+    if request.headers.get("x-forwarded-for") or request.headers.get("forwarded"):
+        return False
+    host = request.client.host if request.client else ""
+    return host in ("127.0.0.1", "::1")
+
+
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
     """Correlation id, structured access log and Prometheus instrumentation."""
@@ -99,7 +157,14 @@ async def request_context_middleware(request: Request, call_next):
     started = time.perf_counter()
     status_code = 500
     try:
-        response = await call_next(request)
+        if (
+            settings.INTERNAL_ENDPOINTS_LOCAL_ONLY
+            and request.url.path in _INTERNAL_PATHS
+            and not _is_local_caller(request)
+        ):
+            response = JSONResponse(status_code=404, content={"detail": "Not Found", "request_id": request_id})
+        else:
+            response = await call_next(request)
         status_code = response.status_code
     finally:
         duration = time.perf_counter() - started
@@ -172,6 +237,9 @@ async def unhandled_exception_handler(_request: Request, exc: Exception):
 @app.get("/health/live", tags=["Health"], summary="Liveness probe")
 def health_live() -> Dict[str, Any]:
     """The process is running.  Does not check dependencies."""
+    if settings.is_production:
+        # May be reachable without authentication (platform health checks).
+        return {"status": "alive"}
     return {"status": "alive", "service": settings.PROJECT_NAME, "version": settings.VERSION}
 
 
