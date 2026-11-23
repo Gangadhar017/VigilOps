@@ -27,6 +27,25 @@ def _looks_like_placeholder(value: str) -> bool:
     return any(marker in lowered for marker in _PLACEHOLDER_MARKERS)
 
 
+# Password policy.  Defined here (not in core.security, which imports this
+# module) so that the configuration check and the API enforce the same rule.
+MIN_PASSWORD_LENGTH = 10
+MAX_PASSWORD_BYTES = 72  # bcrypt limit
+
+
+def password_problem(password: str) -> Optional[str]:
+    """Return a human-readable problem, or None when the password is acceptable."""
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        return f"Password must be at most {MAX_PASSWORD_BYTES} bytes long."
+    if not re.search(r"[a-z]", password) or not re.search(r"[A-Z]", password):
+        return "Password must contain both upper-case and lower-case letters."
+    if not re.search(r"\d", password):
+        return "Password must contain at least one digit."
+    return None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(str(REPO_ROOT / ".env"), ".env"),
@@ -55,6 +74,10 @@ class Settings(BaseSettings):
 
     # --- Database -----------------------------------------------------
     DATABASE_URL: str
+    # Apply the Alembic migrations inside the API process when it starts.  The
+    # Compose image runs "alembic upgrade head" as a separate step instead; the
+    # single-container image uses this to avoid starting a second interpreter.
+    RUN_MIGRATIONS_ON_START: bool = False
 
     # --- Bootstrap accounts (created only when missing) ----------------
     BOOTSTRAP_ADMIN_EMAIL: str = ""
@@ -82,6 +105,20 @@ class Settings(BaseSettings):
     DEMO_CONTROLS_ENABLED: bool = False
     DEMO_APP_CONTROL_TOKEN: str = ""   # backend -> demo app fault injection
     DEMO_APP_RECOVERY_TOKEN: str = ""  # worker  -> demo app recovery (ACTION-001)
+
+    # --- Hosted demonstration profile ----------------------------------
+    # A public demonstration instance runs with ENVIRONMENT=production (every
+    # production safeguard applies) but exists to show the demo.  This explicit
+    # opt-in keeps the Administrator-only demo controls available there.  It must
+    # stay false on any instance that monitors a real workload.
+    ALLOW_DEMO_CONTROLS_IN_PRODUCTION: bool = False
+    # Comma-separated fault modes that are not offered, for hosts that cannot
+    # survive them (for example "cpu,memory" on a small shared instance).
+    DEMO_DISABLED_FAULTS: str = ""
+    # Answer /metrics and /health/ready only to callers on the loopback interface.
+    # Needed when the API port itself is the public port (no reverse proxy in
+    # front that withholds those paths).
+    INTERNAL_ENDPOINTS_LOCAL_ONLY: bool = False
 
     # --- Security scanner ---------------------------------------------
     SECURITY_RULES_DIR: str = str(REPO_ROOT / "security-rules")
@@ -155,6 +192,13 @@ class Settings(BaseSettings):
                 )
             if self.DATABASE_URL.startswith("sqlite"):
                 raise ValueError("SQLite is not supported in production; use PostgreSQL")
+            # A bootstrap password that fails the password policy would be skipped at
+            # start-up, leaving an instance nobody can sign in to.  Refuse to start instead.
+            if self.PROCESS_ROLE == "api":
+                for name in ("BOOTSTRAP_ADMIN_PASSWORD", "BOOTSTRAP_OPERATOR_PASSWORD"):
+                    problem = password_problem(getattr(self, name))
+                    if getattr(self, name) and problem:
+                        raise ValueError(f"{name} does not meet the password policy: {problem}")
 
         self.AI_PROVIDER = self.AI_PROVIDER.lower().strip()
         if self.AI_PROVIDER not in {"gemini", "none"}:
@@ -182,8 +226,17 @@ class Settings(BaseSettings):
 
     @property
     def demo_controls_active(self) -> bool:
-        """Demo controls are never available in production mode."""
-        return self.DEMO_CONTROLS_ENABLED and not self.is_production
+        """Demo controls are off in production mode unless explicitly allowed
+        for a hosted demonstration instance (ALLOW_DEMO_CONTROLS_IN_PRODUCTION)."""
+        if not self.DEMO_CONTROLS_ENABLED:
+            return False
+        return not self.is_production or self.ALLOW_DEMO_CONTROLS_IN_PRODUCTION
+
+    @property
+    def disabled_fault_modes(self) -> List[str]:
+        """Fault modes switched off for this deployment ("none" can never be disabled)."""
+        modes = {m.strip().lower() for m in self.DEMO_DISABLED_FAULTS.split(",") if m.strip()}
+        return sorted(modes - {"none"})
 
     @property
     def api_docs_enabled(self) -> bool:
