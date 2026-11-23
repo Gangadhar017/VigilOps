@@ -192,8 +192,25 @@ through Caddy for the name in `VIGILOPS_DOMAIN`):
 docker compose -f compose.yaml -f compose.prod.yaml up --build -d
 ```
 
-See [docs/deployment.md](docs/deployment.md). Deployment to a real public domain with HTTPS was not
-tested and is documented as unverified.
+See [docs/deployment.md](docs/deployment.md). Deployment of the Compose stack to a server of your own
+with a public domain was not tested and is documented as unverified.
+
+### Free hosting (Render and Vercel)
+
+For a public demonstration at no cost the repository also contains a second deployment:
+
+- `render.yaml` creates one free Render web service and one free PostgreSQL database. Render's free
+  plan has no background workers, private networking or disks, so the API, the worker, the
+  demonstration application, Prometheus and Alertmanager run as separate processes and users inside
+  one container (`deploy/render/`).
+- `frontend/vercel.json` deploys the React application on Vercel and forwards `/api/*` to Render.
+
+The free plans have real limits: the backend sleeps after 15 idle minutes and needs about a minute to
+wake up, monitoring history is lost when it does, the `cpu` and `memory` faults are switched off, and
+the free database expires after 30 days. Steps, limits and the differences from the Compose stack:
+[docs/deployment-render-vercel.md](docs/deployment-render-vercel.md).
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Gangadhar017/VigilOps)
 
 ## Database setup
 
@@ -409,6 +426,7 @@ Full list with causes and fixes: [docs/troubleshooting.md](docs/troubleshooting.
 | [docs/configuration.md](docs/configuration.md) | Environment variables, runtime settings, monitoring files, scan workspace, `vigilops/v1` schema |
 | [docs/user-guide.md](docs/user-guide.md) | Every page for Administrators and Operators, lifecycles, badges |
 | [docs/deployment.md](docs/deployment.md) | Local and production deployment, ports, volumes, backup, hardening |
+| [docs/deployment-render-vercel.md](docs/deployment-render-vercel.md) | Free hosting on Render and Vercel: steps, limits, differences from the Compose stack |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Symptoms, causes and fixes |
 | [docs/architecture.md](docs/architecture.md) | Components, data flows, design decisions |
 | [docs/api.md](docs/api.md) | REST API reference |
