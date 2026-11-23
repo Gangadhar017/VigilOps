@@ -8,12 +8,18 @@ export function Header({ onMenu, demoMode, environment }) {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-3 border-b border-line bg-surface/95 px-4 backdrop-blur">
+    <header className="sticky top-0 z-20 flex h-[52px] shrink-0 items-center justify-between gap-3 border-b border-line bg-canvas/90 px-4 backdrop-blur sm:px-6">
       <div className="flex min-w-0 items-center gap-2">
-        <button type="button" className="btn-ghost btn-sm lg:hidden" onClick={onMenu} aria-label="Open navigation">
+        <button type="button" className="btn-ghost btn-sm -ml-1.5 px-2 lg:hidden" onClick={onMenu} aria-label="Open navigation">
           <Menu size={18} />
         </button>
-        {environment ? <span className="tag hidden uppercase sm:inline-flex">{environment}</span> : null}
+        {environment ? (
+          <span className="hidden items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.12em] text-muted sm:inline-flex">
+            <span className="h-1.5 w-1.5 rounded-[1px] bg-ok" aria-hidden="true" />
+            {environment}
+          </span>
+        ) : null}
+        {environment && demoMode ? <span className="hidden h-3.5 w-px bg-line sm:block" aria-hidden="true" /> : null}
         {demoMode ? (
           <span className="badge border-warn/40 bg-warn/10 text-warn" title="Demonstration controls are enabled on this server. Incidents caused by injected faults are labelled.">
             <FlaskConical size={11} aria-hidden="true" />
@@ -22,11 +28,11 @@ export function Header({ onMenu, demoMode, environment }) {
           </span>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
         <StatusBadge status={user?.role} label={user?.role === 'admin' ? 'Administrator' : 'Operator'} />
         <button
           type="button"
-          className="btn-ghost btn-sm"
+          className="btn-ghost btn-sm w-[30px] px-0"
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}

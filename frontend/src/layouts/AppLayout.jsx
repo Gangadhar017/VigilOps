@@ -26,7 +26,7 @@ export function AppLayout() {
           demoMode={Boolean(summary?.platform?.demo_controls_enabled)}
           environment={summary?.platform?.backend?.environment}
         />
-        <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 pb-24 sm:px-6">
+        <main id="main" className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 pb-24 sm:px-6 lg:px-8">
           <Outlet />
         </main>
       </div>
