@@ -252,7 +252,7 @@ Group the requirements by module. Each row below is implemented; the "where" col
 | FR-35 | VigilAI answers only platform questions, read-only, using retrieved documentation and authorised live data | `assistant/service.py` |
 | FR-36 | VigilAI falls back to documentation answers when the provider is missing or fails | `compose_fallback` |
 | FR-37 | Administrators can change three runtime settings and switch the assistant off | `settings_service.py` |
-| FR-38 | Demo controls (fault injection, sample reset) exist only when enabled and never in production mode | `demo_controls_active` |
+| FR-38 | Demo controls (fault injection, sample reset) exist only when enabled; in production mode they are off unless the explicit hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is also set (default off) | `demo_controls_active` |
 
 ### 4.3 Non-functional requirements
 
@@ -401,6 +401,7 @@ A modular monolith plus one restricted worker. The backend is a single FastAPI a
 
 - **Local:** `compose.yaml`. Tool ports (API documentation, Prometheus, Alertmanager) are bound to 127.0.0.1.
 - **Production overlay:** `compose.prod.yaml` sets `ENVIRONMENT=production`, forces demo controls off, removes all published ports except 80 and 443 on `web`, and gives Caddy a domain name so that it obtains a TLS certificate automatically. **This overlay was validated as configuration but not deployed on a real domain; say so.**
+- **Free hosting (second option):** `render.yaml` (Render Blueprint: one free web service running `deploy/render/Dockerfile` - API, worker, demo application, Prometheus and Alertmanager as separate processes in one container, each under its own user where the host lets the container switch users, supervised by `deploy/render/launcher.py` - plus one free PostgreSQL) and `frontend/vercel.json` (frontend on Vercel, `/api/*` proxied to the Render service). Described in [`../deployment-render-vercel.md`](../deployment-render-vercel.md). The Compose stack remains the reference deployment.
 
 **Figures / tables to include** (reference the Mermaid diagrams by file name)
 
@@ -493,14 +494,14 @@ Present the implementation module by module. For each module give the files, the
 - A middleware assigns a fresh request ID to every request (a caller-supplied `X-Request-ID` is deliberately not adopted, because the request ID becomes the default audit correlation ID), writes a structured access log, and records `http_requests_total` and `http_request_duration_seconds` using the route template as the label so that label cardinality stays bounded.
 - Exception handlers return consistent JSON (`detail`, `request_id`) and never a stack trace.
 - `/health/live` reports that the process runs; `/health/ready` returns HTTP 503 unless the database is reachable and migrated; `/metrics` is the Prometheus exposition endpoint.
-- `core/config.py` reads all configuration from the environment. The API refuses to start without a `SECRET_KEY` of at least 32 characters and an `ALERT_WEBHOOK_TOKEN` of at least 16; in production mode it also refuses placeholder values and SQLite.
+- `core/config.py` reads all configuration from the environment. The API refuses to start without a `SECRET_KEY` of at least 32 characters and an `ALERT_WEBHOOK_TOKEN` of at least 16; in production mode it also refuses placeholder values, SQLite and bootstrap passwords that do not meet the password policy.
 
 ### 7.2 Authentication and RBAC (`core/security.py`, `core/permissions.py`, `api/auth.py`)
 
 - Passwords are hashed with bcrypt. `verify_password` always performs one bcrypt comparison, using a dummy hash when the e-mail is unknown, so that response time does not reveal whether an account exists.
 - The JWT (HS256) carries `sub`, `role`, `ver`, `jti`, `iat` and `exp`. On every request `get_current_user` checks the signature and expiry, that the user exists and is active, that `ver` equals the user's current `token_version`, and that `jti` is not in `revoked_tokens`.
 - `require_permission("...")` is a FastAPI dependency factory. A refused request is audited as `ACCESS_DENIED` and answered with HTTP 403. An unknown permission name raises an error at import time, so a typing mistake cannot silently disable a check.
-- Sign-in rate limiting uses an in-process sliding window keyed by client address and e-mail, plus a coarser per-address limit. Wrong current-password attempts on the change-password form are limited per user in the same way, and the limiter's memory is bounded by periodic sweeps.
+- Sign-in rate limiting uses an in-process sliding window keyed by client address and e-mail, plus a coarser per-address limit and a limit per e-mail regardless of the address (20 failures by default lock sign-in for that e-mail from every address until the window passes). Wrong current-password attempts on the change-password form are limited per user in the same way, and the limiter's memory is bounded by periodic sweeps.
 
 ### 7.3 Monitoring (`test-app/app.py`, `monitoring/`, `services/monitoring_service.py`)
 
@@ -663,7 +664,7 @@ Describe the pages (Overview, Monitoring, Incidents, Incident detail, Security F
 
 ### 7.13 Deployment and configuration
 
-`compose.yaml`, `compose.prod.yaml`, `reverse-proxy/Caddyfile`, Dockerfiles, `.env.example`, `scripts/generate_env.py`, `scripts/verify_stack.sh`, `scripts/backup_db.sh`, `scripts/restore_db.sh`. See [`../setup.md`](../setup.md), [`../configuration.md`](../configuration.md) and [`../deployment.md`](../deployment.md).
+`compose.yaml`, `compose.prod.yaml`, `reverse-proxy/Caddyfile`, Dockerfiles, `.env.example`, `scripts/generate_env.py`, `scripts/verify_stack.sh`, `scripts/backup_db.sh`, `scripts/restore_db.sh`. See [`../setup.md`](../setup.md), [`../configuration.md`](../configuration.md) and [`../deployment.md`](../deployment.md). For the free-hosting option: `render.yaml`, `deploy/render/Dockerfile`, `deploy/render/launcher.py` and `frontend/vercel.json`; see [`../deployment-render-vercel.md`](../deployment-render-vercel.md).
 
 **Figures / tables to include**
 

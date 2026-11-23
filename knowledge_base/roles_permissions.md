@@ -13,7 +13,7 @@ An Operator can view the dashboard, monitoring, incidents, findings, remediation
 Users sign in with e-mail and password. Passwords are stored as bcrypt hashes. A successful login returns a signed JWT access token that expires after 60 minutes by default. Signing out revokes the token on the server. Changing a password or role signs out all of that user's sessions.
 
 ## Login rate limiting
-After 5 failed sign-in attempts for the same e-mail and address within 5 minutes, further attempts are refused with HTTP 429 until the window passes. Failed and blocked attempts are audited.
+After 5 failed sign-in attempts for the same e-mail and address within 5 minutes, further attempts are refused with HTTP 429 until the window passes. After 20 failed attempts for the same e-mail from any address within 5 minutes, sign-in for that e-mail is refused from every address until the window passes. Failed and blocked attempts are audited.
 
 ## Password policy
 At least 10 characters, with upper-case and lower-case letters and a digit, and at most 72 bytes.

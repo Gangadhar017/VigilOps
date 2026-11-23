@@ -19,7 +19,7 @@ The restricted worker is not running or cannot reach the database. The Remediati
 Open the request to read the failure reason and verification checks. Common causes: the demo application container is stopped (ACTION-001 cannot start containers), Prometheus was unavailable so recovery could not be verified, or the configuration file was changed or removed. Fix the cause and have an Administrator retry.
 
 ## Cannot sign in
-"Incorrect e-mail or password" is shown for any invalid credentials. After 5 failures you must wait up to 5 minutes (HTTP 429). A deactivated account cannot sign in. An Administrator can reset a password in Settings -> Users.
+"Incorrect e-mail or password" is shown for any invalid credentials. After 5 failures you must wait up to 5 minutes (HTTP 429). After 20 failures for the same e-mail from any address, that e-mail is refused from every address until the window passes. A deactivated account cannot sign in. An Administrator can reset a password in Settings -> Users.
 
 ## The dashboard shows metrics as unavailable
 The backend could not get a value from Prometheus: Prometheus may be down, the target may be down, or there is no traffic yet for a rate to be computed. VigilOps shows "unavailable" rather than a guessed number.

@@ -16,7 +16,7 @@ Configuration lives in the .env file, never in source code. Important settings: 
 Create an API key in Google AI Studio, then set GEMINI_API_KEY in .env and restart the backend with docker compose up -d backend. The model is chosen with GEMINI_MODEL and can be changed without code changes. The key stays on the backend; it is never sent to the browser. Without a key VigilAI works in documentation mode. Free-tier quotas are limited and can change; paid billing is never enabled by VigilOps.
 
 ## Demo controls
-When DEMO_CONTROLS_ENABLED=true and the environment is not production, an Administrator can inject a controlled fault into the demo application and reset the sample configuration from Settings -> Demo controls. In production mode these controls are always disabled.
+When DEMO_CONTROLS_ENABLED=true and the environment is not production, an Administrator can inject a controlled fault into the demo application and reset the sample configuration from Settings -> Demo controls. In production mode these controls are disabled unless the hosted-demonstration opt-in ALLOW_DEMO_CONTROLS_IN_PRODUCTION is also set.
 
 ## Data persistence
 PostgreSQL data, Prometheus data and the scan workspace are stored in named Docker volumes, so records survive container restarts and docker compose down. Only docker compose down -v removes them.

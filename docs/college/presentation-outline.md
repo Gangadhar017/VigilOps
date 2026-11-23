@@ -131,7 +131,7 @@ All members must be able to answer questions on every slide; see [`team-responsi
 
 **Visual:** [`../diagrams/system-architecture.md`](../diagrams/system-architecture.md); keep [`../diagrams/deployment.md`](../diagrams/deployment.md) as a backup slide.
 
-**Speaker notes:** Trace one request and one alert across the diagram. Explain why the worker is a separate container: a fault in the public API can only queue a request, and the worker runs it only if an Administrator approved it. Mention the container hardening of the worker (read-only root filesystem, no capabilities).
+**Speaker notes:** Trace one request and one alert across the diagram. Explain why the worker is a separate container: a fault in the public API can only queue a request, and the worker runs it only if an Administrator approved it. Mention the container hardening of the worker (read-only root filesystem, no capabilities), which the backend and the demonstration application share.
 
 ---
 

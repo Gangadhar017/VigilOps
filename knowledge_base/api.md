@@ -25,7 +25,7 @@ GET /api/audit/events, GET /api/audit/events/{id}, GET /api/audit/meta, GET /api
 GET and POST /api/users, PATCH /api/users/{id} and POST /api/users/{id}/reset-password are for Administrators only. GET /api/settings shows the effective configuration without secret values; PUT /api/settings/{key} changes a runtime setting (Administrator).
 
 ## Demo control endpoints
-GET /api/demo/status, POST /api/demo/faults and POST /api/demo/reset-config exist only when demo controls are enabled and the environment is not production; injecting faults and resetting the sample configuration require an Administrator.
+GET /api/demo/status, POST /api/demo/faults and POST /api/demo/reset-config exist only when demo controls are enabled and the environment is not production, or in production mode when the hosted-demonstration opt-in ALLOW_DEMO_CONTROLS_IN_PRODUCTION is also set; injecting faults and resetting the sample configuration require an Administrator.
 
 ## Health endpoints
 GET /api/health and GET /api/version are public. The backend also serves GET /health/live, GET /health/ready and GET /metrics on the internal network only; they are not reachable through the reverse proxy.

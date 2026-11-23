@@ -179,7 +179,7 @@ Ownership decides who maintains a module, who writes the corresponding part of t
 | Assistant backend | `backend/app/assistant/service.py`, `scope.py`, `retrieval.py`, `context_tools.py`, `prompts.py`, `providers.py`, `gemini_provider.py`, `sanitize.py`, `api/assistant.py` |
 | Knowledge base | every file in `knowledge_base/` |
 | Assistant frontend | `frontend/src/features/vigilai/VigilAIWidget.jsx`, `VigilAIChat.jsx`, `SafeText.jsx`, `SuggestedQuestions.jsx`, `pages/Help.jsx`, `api/vigilai.js` |
-| Integration and deployment | `compose.yaml`, `compose.prod.yaml`, `reverse-proxy/Caddyfile`, `.env.example`, the final stage of `frontend/Dockerfile` |
+| Integration and deployment | `compose.yaml`, `compose.prod.yaml`, `reverse-proxy/Caddyfile`, `.env.example`, the final stage of `frontend/Dockerfile`, `render.yaml`, `deploy/render/`, `frontend/vercel.json` |
 | Verification | `scripts/run_e2e_demos.py`, `scripts/verify_alert_rules.py`, `scripts/verify_gemini_live.py`, `scripts/verify_stack.sh`, the Playwright tests in `tests/e2e/`, `.github/workflows/ci.yml`, and coordination of `backend/tests/integration/test_hardening.py` (cross-module regression tests; each member maintains the cases for their own module) |
 | Tests | `backend/tests/unit/test_assistant_guards.py`, `tests/integration/test_assistant.py`, `frontend/src/test/vigilai.test.jsx` |
 | Documentation | `README.md`, everything in `docs/`, including `docs/diagrams/` and `docs/college/` |

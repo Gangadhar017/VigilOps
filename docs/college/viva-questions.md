@@ -42,7 +42,7 @@ Local-first means the complete stack - web proxy, API, worker, PostgreSQL, Prome
 
 **Q3. Which virtualization technology do you use, and how does it differ from a virtual machine?**
 
-We use Docker containers started by Docker Compose. A container shares the host's kernel and is isolated with namespaces and control groups, whereas a virtual machine runs its own guest kernel on a hypervisor; containers start faster and use fewer resources but give weaker isolation. We use the container controls deliberately in `compose.yaml`: the demonstration application has a memory limit of 512 MB and one CPU, and the worker and the demonstration application run with a read-only root filesystem, all capabilities dropped and `no-new-privileges`. On Windows, Docker Desktop runs these Linux containers inside a WSL2 virtual machine.
+We use Docker containers started by Docker Compose. A container shares the host's kernel and is isolated with namespaces and control groups, whereas a virtual machine runs its own guest kernel on a hypervisor; containers start faster and use fewer resources but give weaker isolation. We use the container controls deliberately in `compose.yaml`: the demonstration application has a memory limit of 512 MB and one CPU, and the backend, the worker and the demonstration application run with a read-only root filesystem, all capabilities dropped and `no-new-privileges`. On Windows, Docker Desktop runs these Linux containers inside a WSL2 virtual machine.
 
 **Q4. Is your telemetry real? (hard)**
 
@@ -198,11 +198,11 @@ With two server-side checks. Sign-out stores the token's `jti` in the table `rev
 
 **Q38. How do you resist password guessing and user enumeration?**
 
-Failed sign-ins are counted in a sliding window per client address and e-mail - by default five failures in five minutes block further attempts with HTTP 429 - with a coarser limit per address (`api/auth.py`). The error message is the same for an unknown e-mail, a wrong password and a disabled account. `verify_password` always performs one bcrypt comparison, against a dummy hash when the e-mail is unknown, so response time does not reveal whether an account exists. A lock-out is audited once per window, so a flood of attempts cannot bloat the audit trail, and wrong current-password attempts on the change-password form are limited in the same way.
+Failed sign-ins are counted in a sliding window per client address and e-mail - by default five failures in five minutes block further attempts with HTTP 429 - with a coarser limit per address (`api/auth.py`). A third limit counts failures per e-mail whatever the address: 20 failures within the window (four times the per-address value) lock sign-in for that e-mail from every address until the window passes. It exists because the client address comes from a forwarding header and can be forged when the API is reachable without a trusted proxy in front of it; its cost is that someone who knows an account's e-mail can temporarily lock that account out. The error message is the same for an unknown e-mail, a wrong password and a disabled account. `verify_password` always performs one bcrypt comparison, against a dummy hash when the e-mail is unknown, so response time does not reveal whether an account exists. A lock-out is audited once per window, so a flood of attempts cannot bloat the audit trail, and wrong current-password attempts on the change-password form are limited in the same way.
 
 **Q39. What is your password policy, and why is there a 72-byte limit?**
 
-At least 10 characters with upper-case and lower-case letters and a digit (`validate_password_strength`). bcrypt considers only the first 72 bytes of its input, so a longer password would be silently truncated; we reject it instead. The same policy applies to the bootstrap accounts: an account whose password in `.env` is too weak is not created. Hashes use bcrypt with a work factor of 12.
+At least 10 characters with upper-case and lower-case letters and a digit (`validate_password_strength`). bcrypt considers only the first 72 bytes of its input, so a longer password would be silently truncated; we reject it instead. The same policy applies to the bootstrap accounts: an account whose password in `.env` is too weak is not created, and in production mode the API refuses to start with such a password. Hashes use bcrypt with a work factor of 12.
 
 **Q40. Why is there no registration page?**
 
@@ -410,7 +410,7 @@ SQL injection: all database access goes through SQLAlchemy with bound parameters
 
 **Q86. Where is rate limiting applied, and what is its weakness?**
 
-On sign-in (failures per address and e-mail, and requests per address) and on the assistant (messages per user per minute, plus a daily server cap), using `SlidingWindowLimiter` in `core/rate_limit.py`. The limiter keeps its state in the memory of the single backend process, so the state is lost on restart and would not be shared between several backend processes; the image therefore starts Uvicorn with one worker process. A shared store such as Redis would be needed to scale out. Other endpoints rely on authentication and page-size limits.
+On sign-in (failures per address and e-mail, failures per e-mail from any address, and requests per address) and on the assistant (messages per user per minute, plus a daily server cap), using `SlidingWindowLimiter` in `core/rate_limit.py`. The limiter keeps its state in the memory of the single backend process, so the state is lost on restart and would not be shared between several backend processes; the image therefore starts Uvicorn with one worker process. A shared store such as Redis would be needed to scale out. Other endpoints rely on authentication and page-size limits.
 
 **Q87. How do you handle CORS and CSRF?**
 
@@ -428,7 +428,7 @@ Install Docker with the Compose plugin, clone the repository, copy `.env.example
 
 **Q90. What is different in the production overlay?**
 
-`compose.prod.yaml` is applied on top of `compose.yaml`. It sets `ENVIRONMENT=production`, which makes the backend refuse placeholder secrets and SQLite, turns off the interactive API documentation and forces the demo controls off regardless of the flag. It removes the published ports of the backend, Prometheus and Alertmanager, publishes only 80 and 443 on the web service, and gives Caddy the domain name from `VIGILOPS_DOMAIN` so that it obtains and renews a TLS certificate automatically.
+`compose.prod.yaml` is applied on top of `compose.yaml`. It sets `ENVIRONMENT=production`, which makes the backend refuse placeholder secrets and SQLite, turns off the interactive API documentation and keeps the demo controls off; the overlay also sets `DEMO_CONTROLS_ENABLED=false`. (Production mode allows the demo controls only with the explicit opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION`, which exists for a hosted demonstration instance and is not used by the Compose stack.) It removes the published ports of the backend, Prometheus and Alertmanager, publishes only 80 and 443 on the web service, and gives Caddy the domain name from `VIGILOPS_DOMAIN` so that it obtains and renews a TLS certificate automatically.
 
 **Q91. Did you test the HTTPS deployment?**
 
