@@ -1,0 +1,13 @@
+{
+  "name": "vigilops-e2e",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Browser end-to-end tests for VigilOps (run against a running stack).",
+  "scripts": {
+    "test": "playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}
