@@ -1,63 +1,185 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+"""Authentication endpoints: login, logout, current user, password change."""
+from __future__ import annotations
+
+from typing import Any, Dict
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from backend.app.core.database import get_db
-from backend.app.core.security import verify_password, create_access_token, get_password_hash, get_current_user
-from backend.app.models.models import User
-from backend.app.schemas.schemas import Token, UserResponse, UserLogin, UserCreate
+from app.core.config import settings
+from app.core.database import get_db, utcnow
+from app.core.permissions import permission_matrix, permissions_for
+from app.core.rate_limit import SlidingWindowLimiter
+from app.core.security import (
+    create_access_token,
+    get_current_user,
+    get_token_claims,
+    hash_password,
+    revoke_token,
+    validate_password_strength,
+    verify_password,
+)
+from app.models.models import AuditOutcome, User
+from app.schemas.schemas import ChangePasswordRequest, LoginRequest, SessionUser, TokenResponse
+from app.services.audit_service import record_audit
 
-router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@router.post("/login", response_model=Token)
-def login(payload: UserLogin, db: Session = Depends(get_db)):
+# Failed attempts per (client address, e-mail) and a coarser per-address limit.
+login_failures = SlidingWindowLimiter(
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS, settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS
+)
+login_requests_per_ip = SlidingWindowLimiter(30, 60)
+_lockout_audit = SlidingWindowLimiter(1, settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS)
+# Wrong current-password attempts on the change-password form (per user).
+password_change_failures = SlidingWindowLimiter(
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS, settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS
+)
+
+
+def reset_login_limits() -> None:
+    """Clear in-memory limiter state (used by tests)."""
+    login_failures.clear()
+    login_requests_per_ip.clear()
+    _lockout_audit.clear()
+    password_change_failures.clear()
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+def session_user(user: User) -> SessionUser:
+    return SessionUser.model_validate(user).model_copy(update={"permissions": permissions_for(user.role)})
+
+
+@router.post(
+    "/login",
+    response_model=TokenResponse,
+    responses={401: {"description": "Invalid credentials"}, 429: {"description": "Too many attempts"}},
+)
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> Dict[str, Any]:
+    ip = _client_ip(request)
+    key = f"{ip}|{payload.email}"
+
+    allowed_ip, retry_ip = login_requests_per_ip.allow(ip)
+    allowed_key, retry_key = login_failures.check(key)
+    if not allowed_ip or not allowed_key:
+        retry_after = max(retry_ip, retry_key)
+        # Audit a lock-out once per window, so a flood cannot bloat the audit trail.
+        if _lockout_audit.allow(key)[0]:
+            record_audit(
+                db,
+                action="AUTH_LOGIN_RATE_LIMITED",
+                entity_type="user",
+                actor_label=payload.email,
+                outcome=AuditOutcome.DENIED,
+                metadata={"retry_after_seconds": retry_after},
+            )
+            db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many sign-in attempts. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     user = db.query(User).filter(User.email == payload.email).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    # verify_password always performs a bcrypt comparison, even for unknown users.
+    password_ok = verify_password(payload.password, user.password_hash if user else None)
+
+    if user is None or not password_ok or not user.is_active:
+        login_failures.hit(key)
+        record_audit(
+            db,
+            action="AUTH_LOGIN_FAILED",
+            entity_type="user",
+            entity_id=user.id if user else None,
+            actor_label=payload.email,
+            outcome=AuditOutcome.FAILURE,
+            metadata={"reason": "account disabled" if (user and password_ok) else "invalid credentials"},
+        )
+        db.commit()
+        # One generic message: do not reveal whether the e-mail exists.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
+            detail="Incorrect e-mail or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = create_access_token(data={"sub": user.email, "role": user.role})
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": user
-    }
 
-# Also support OAuth2 form login for FastAPI Swagger /docs convenience
-@router.post("/token", response_model=Token, include_in_schema=False)
-def login_form(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not verify_password(form_data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    token = create_access_token(data={"sub": user.email, "role": user.role})
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "user": user
-    }
-
-@router.get("/me", response_model=UserResponse)
-def read_current_user(current_user: User = Depends(get_current_user)):
-    return current_user
-
-@router.post("/register", response_model=UserResponse)
-def register_user(payload: UserCreate, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == payload.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    new_user = User(
-        email=payload.email,
-        password_hash=get_password_hash(payload.password),
-        role=payload.role if payload.role in ["admin", "operator"] else "operator"
-    )
-    db.add(new_user)
+    login_failures.reset(key)
+    user.last_login_at = utcnow()
+    token, expires_at, _jti = create_access_token(user)
+    record_audit(db, action="AUTH_LOGIN_SUCCESS", entity_type="user", entity_id=user.id, actor=user)
     db.commit()
-    db.refresh(new_user)
-    return new_user
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "expires_at": expires_at,
+        "user": session_user(user),
+    }
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(
+    claims: Dict[str, Any] = Depends(get_token_claims),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Revoke the presented token server-side so it cannot be reused."""
+    revoke_token(db, claims, current_user)
+    record_audit(db, action="AUTH_LOGOUT", entity_type="user", entity_id=current_user.id, actor=current_user)
+    db.commit()
+
+
+@router.get("/me", response_model=SessionUser)
+def read_current_user(current_user: User = Depends(get_current_user)) -> SessionUser:
+    return session_user(current_user)
+
+
+@router.get("/permissions")
+def read_permission_matrix(current_user: User = Depends(get_current_user)) -> Dict[str, Any]:
+    """The role/permission matrix enforced by the backend."""
+    return {"role": current_user.role, "matrix": permission_matrix()}
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    limiter_key = f"user:{current_user.id}"
+    allowed, retry_after = password_change_failures.check(limiter_key)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many incorrect attempts. Try again in {retry_after} seconds.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    if not verify_password(payload.current_password, current_user.password_hash):
+        password_change_failures.hit(limiter_key)
+        record_audit(
+            db,
+            action="AUTH_PASSWORD_CHANGE_FAILED",
+            entity_type="user",
+            entity_id=current_user.id,
+            actor=current_user,
+            outcome=AuditOutcome.FAILURE,
+            metadata={"reason": "current password incorrect"},
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect.")
+    problem = validate_password_strength(payload.new_password)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
+    if payload.new_password == payload.current_password:
+        raise HTTPException(
+            status_code=422,
+            detail="The new password must be different from the current password.",
+        )
+    current_user.password_hash = hash_password(payload.new_password)
+    current_user.token_version += 1  # signs out every existing session
+    record_audit(
+        db, action="AUTH_PASSWORD_CHANGED", entity_type="user", entity_id=current_user.id, actor=current_user
+    )
+    db.commit()
