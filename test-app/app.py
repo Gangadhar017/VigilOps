@@ -49,6 +49,8 @@ from pydantic import BaseModel
 
 SERVICE_NAME = "vigilops-demo-app"
 PORT = int(os.environ.get("PORT", "8001"))
+# 0.0.0.0 inside its own container; 127.0.0.1 when it shares a container with the platform.
+HOST = os.environ.get("HOST", "0.0.0.0")
 DEMO_CONTROLS_ENABLED = os.environ.get("DEMO_CONTROLS_ENABLED", "false").lower() == "true"
 CONTROL_TOKEN = os.environ.get("DEMO_APP_CONTROL_TOKEN", "")
 RECOVERY_TOKEN = os.environ.get("DEMO_APP_RECOVERY_TOKEN", "")
@@ -56,6 +58,10 @@ LOAD_GENERATOR_ENABLED = os.environ.get("LOAD_GENERATOR_ENABLED", "true").lower(
 LOAD_INTERVAL_SECONDS = float(os.environ.get("LOAD_INTERVAL_SECONDS", "0.5"))
 
 FAULT_MODES = ("none", "outage", "errors", "latency", "cpu", "memory")
+# Faults a small host cannot survive can be switched off (e.g. "cpu,memory").
+DISABLED_FAULTS = {
+    mode.strip().lower() for mode in os.environ.get("DEMO_DISABLED_FAULTS", "").split(",") if mode.strip()
+} - {"none"}
 FAULT_TTL_SECONDS = 600           # cpu / memory faults clear themselves after 10 minutes
 MEMORY_BALLAST_BYTES = 220 * 1024 * 1024
 LATENCY_SECONDS = 1.5
@@ -294,6 +300,8 @@ def internal_fault(payload: FaultRequest, authorization: Optional[str] = Header(
         raise HTTPException(status_code=401, detail="Invalid control token.")
     if payload.mode not in FAULT_MODES:
         raise HTTPException(status_code=422, detail=f"mode must be one of {', '.join(FAULT_MODES)}")
+    if payload.mode in DISABLED_FAULTS:
+        raise HTTPException(status_code=422, detail=f"The '{payload.mode}' fault is switched off in this deployment.")
     state.set_fault(payload.mode)
     return {"status": "applied", "simulated": payload.mode != "none", **state.snapshot()}
 
@@ -338,4 +346,4 @@ def _start_load_generator() -> None:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
+    uvicorn.run(app, host=HOST, port=PORT, log_level="warning")

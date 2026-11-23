@@ -1,8 +1,9 @@
 """Demonstration controls.
 
-These routes exist only to drive the local demo (controlled outage, sample
-configuration reset).  They return HTTP 404 unless demo controls are active,
-which is impossible in production mode, and they require Administrator rights.
+These routes exist only to drive the demo (controlled outage, sample
+configuration reset).  They return HTTP 404 unless demo controls are active -
+which in production mode needs the explicit hosted-demonstration opt-in - and
+they require Administrator rights.
 """
 from __future__ import annotations
 
@@ -36,7 +37,8 @@ def demo_status(user: User = Depends(require_permission("settings:view"))) -> Di
     return {
         "enabled": enabled,
         "environment": settings.ENVIRONMENT,
-        "fault_modes": demo_service.FAULT_MODES if enabled else {},
+        "fault_modes": demo_service.available_fault_modes() if enabled else {},
+        "disabled_fault_modes": settings.disabled_fault_modes if enabled else [],
         "demo_app": state,
         "demo_app_reachable": state is not None if enabled else None,
     }

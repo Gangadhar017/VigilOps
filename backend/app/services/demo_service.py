@@ -1,7 +1,8 @@
 """Controls for the local demonstration environment.
 
-Everything here is refused unless ``settings.demo_controls_active`` is true,
-which can never be the case in production mode.
+Everything here is refused unless ``settings.demo_controls_active`` is true.
+In production mode that requires the explicit opt-in for a hosted demonstration
+instance (``ALLOW_DEMO_CONTROLS_IN_PRODUCTION``); otherwise it is never the case.
 
 * Fault injection talks to the demo application's token-protected control API.
 * Resetting the sample configuration is queued for the restricted worker,
@@ -45,6 +46,12 @@ def ensure_enabled() -> None:
         raise DemoError("Demonstration controls are disabled in this environment.", status_code=404)
 
 
+def available_fault_modes() -> Dict[str, str]:
+    """Fault modes offered by this deployment (DEMO_DISABLED_FAULTS removes some)."""
+    disabled = settings.disabled_fault_modes
+    return {mode: text for mode, text in FAULT_MODES.items() if mode not in disabled}
+
+
 def _headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {settings.DEMO_APP_CONTROL_TOKEN}"}
 
@@ -79,6 +86,12 @@ def inject_fault(db: Session, actor: User, mode: str) -> Dict[str, Any]:
     ensure_enabled()
     if mode not in FAULT_MODES:
         raise DemoError("Unknown fault mode.", status_code=422)
+    if mode in settings.disabled_fault_modes:
+        raise DemoError(
+            f"The '{mode}' fault is switched off in this deployment because the host "
+            "does not have the resources to run it.",
+            status_code=422,
+        )
     try:
         response = httpx.post(
             f"{settings.DEMO_APP_URL}/internal/fault",
