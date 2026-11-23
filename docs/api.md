@@ -170,7 +170,7 @@ Source: `PERMISSIONS` in `backend/app/core/permissions.py`. The same matrix is r
 | `users:manage` | Create, update and deactivate users | yes | no |
 | `settings:view` | View platform configuration | yes | yes |
 | `settings:manage` | Change platform settings | yes | no |
-| `demo:control` | Use demonstration controls (local demo mode only) | yes | no |
+| `demo:control` | Use demonstration controls (demonstration environments only) | yes | no |
 
 Endpoints that only need a signed-in user, with no specific permission: `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/auth/permissions`, `POST /api/auth/change-password`.
 
@@ -192,6 +192,8 @@ Defined in `backend/app/main.py`. None of these requires authentication.
 { "status": "alive", "service": "VigilOps", "version": "2.0.0" }
 ```
 
+In production mode the response is only `{ "status": "alive" }`; `service` and `version` are included in development.
+
 `GET /health/ready` (HTTP 200, or 503 with `"status": "not_ready"`)
 
 ```json
@@ -205,6 +207,8 @@ Defined in `backend/app/main.py`. None of these requires authentication.
 ```
 
 When the database check fails, `error` contains the exception class name only (for example `OperationalError`).
+
+When the backend setting `INTERNAL_ENDPOINTS_LOCAL_ONLY` is `true` (default `false`; used by the single-container image, see [deployment-render-vercel.md](deployment-render-vercel.md)), `GET /health/ready` and `GET /metrics` answer HTTP 404 unless the caller is on the loopback interface and the request carries no `X-Forwarded-For` or `Forwarded` header.
 
 `GET /api/health`
 
@@ -222,11 +226,15 @@ When the database check fails, `error` contains the exception class name only (f
 }
 ```
 
+In production mode the response is only `{ "status": "healthy" }`, or `{ "status": "unhealthy" }` with HTTP 503 when the backend is not ready; the other fields are included outside production.
+
 `GET /api/version`
 
 ```json
 { "project": "VigilOps: Secure Cloud Operations", "version": "2.0.0", "environment": "development" }
 ```
+
+In production mode the response is only `{ "project": "VigilOps: Secure Cloud Operations" }`.
 
 `GET /metrics` exposes, besides the default process metrics of `prometheus_client`:
 
@@ -295,7 +303,7 @@ Content-Type: application/json
   | Status | `detail` | When |
   |---|---|---|
   | 401 | `Incorrect e-mail or password.` | Unknown e-mail, wrong password or deactivated account (deliberately the same message) |
-  | 429 | `Too many sign-in attempts. Try again in N seconds.` | 5 failed attempts for the same client address and e-mail within 300 seconds, or more than 30 login requests from one address within 60 seconds. `Retry-After` is set |
+  | 429 | `Too many sign-in attempts. Try again in N seconds.` | 5 failed attempts for the same client address and e-mail within 300 seconds, 20 failed attempts for the same e-mail from any address within 300 seconds (four times `LOGIN_RATE_LIMIT_ATTEMPTS`; sign-in for that e-mail is then refused from every address until the window passes), or more than 30 login requests from one address within 60 seconds. `Retry-After` is set |
   | 422 | validation | Missing or over-long field |
 
 ### `POST /api/auth/logout`
@@ -1659,7 +1667,7 @@ Content-Type: application/json
 
 ## Demo controls
 
-Router: `backend/app/api/demo.py`. These endpoints drive the local demonstration. They are active only when `DEMO_CONTROLS_ENABLED=true` and the environment is not production; otherwise the two POST endpoints return 404.
+Router: `backend/app/api/demo.py`. These endpoints drive the local demonstration. They are active only when `DEMO_CONTROLS_ENABLED=true` and the environment is not production, or, in production mode, when the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION=true` is set as well (default `false`); otherwise the two POST endpoints return 404.
 
 ### `GET /api/demo/status`
 
@@ -1680,6 +1688,7 @@ Whether the controls are available and the demo application's current fault stat
     "cpu": "CPU saturation: a bounded background thread keeps one core busy.",
     "memory": "Memory pressure: the service allocates a bounded block of memory."
   },
+  "disabled_fault_modes": [],
   "demo_app": {
     "service": "vigilops-demo-app",
     "fault_mode": "none",
@@ -1693,7 +1702,9 @@ Whether the controls are available and the demo application's current fault stat
 }
 ```
 
-When the controls are disabled: `enabled: false`, `fault_modes: {}`, `demo_app: null`, `demo_app_reachable: null`.
+`fault_modes` contains only the modes this deployment offers. Modes switched off with `DEMO_DISABLED_FAULTS` are left out of it and listed in `disabled_fault_modes` instead (for example `["cpu", "memory"]`).
+
+When the controls are disabled: `enabled: false`, `fault_modes: {}`, `disabled_fault_modes: []`, `demo_app: null`, `demo_app_reachable: null`.
 
 ### `POST /api/demo/faults`
 
@@ -1725,10 +1736,11 @@ Injects or clears a controlled fault on the demonstration application.
 
   | Status | `detail` | When |
   |---|---|---|
-  | 404 | `Demonstration controls are disabled in this environment.` | Controls inactive (always in production) |
+  | 404 | `Demonstration controls are disabled in this environment.` | Controls inactive (in production unless `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is set) |
   | 502 | `The demonstration application could not be reached.` | Network error; audited with outcome FAILURE |
   | 502 | `The demonstration application rejected the request (HTTP 401).` | The demo application refused the call |
   | 422 | validation | Unknown mode |
+  | 422 | `The 'cpu' fault is switched off in this deployment because the host does not have the resources to run it.` | The mode is listed in `DEMO_DISABLED_FAULTS` |
 
 ### `POST /api/demo/reset-config`
 

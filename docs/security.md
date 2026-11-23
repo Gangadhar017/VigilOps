@@ -2,6 +2,8 @@
 
 This document describes the security design of VigilOps as it is implemented: what is protected, from whom, by which mechanism, and what is not protected. Each control names the module or function that implements it so that it can be checked against the code. The last section lists the residual risks and limitations of the current build.
 
+Statements about containers, mounts, the internal network and published ports describe the Docker Compose stack, which is the reference deployment. The free-hosting variant that runs the components in one container is described in [deployment-render-vercel.md](deployment-render-vercel.md).
+
 Related documents: [Architecture](architecture.md) · [API reference](api.md) · [Configuration](configuration.md) · [Deployment](deployment.md) · [Verification report](verification-report.md) · [Evaluation](evaluation.md)
 
 ## Contents
@@ -90,7 +92,7 @@ Implemented in `backend/app/core/security.py` and `backend/app/api/auth.py`.
 
 - Stored as bcrypt hashes with cost factor 12 (`hash_password`). Plain passwords are never stored or logged.
 - bcrypt considers only the first 72 bytes of its input. Instead of truncating silently, the policy rejects longer passwords and `verify_password` never reports a match for an over-long input.
-- Password policy (`validate_password_strength`): at least 10 characters, at most 72 bytes, both upper-case and lower-case letters, and at least one digit. It is applied when a user is created, when an Administrator resets a password, when a user changes their own password, and to the bootstrap accounts (a weak bootstrap password causes the account to be skipped with an error in the log).
+- Password policy (`validate_password_strength`): at least 10 characters, at most 72 bytes, both upper-case and lower-case letters, and at least one digit. It is applied when a user is created, when an Administrator resets a password, when a user changes their own password, and to the bootstrap accounts (in production mode the API refuses to start when a bootstrap password fails the policy; outside production the account is skipped with an error in the log).
 - A password change must supply the current password and a different new one.
 
 **Login**
@@ -100,7 +102,8 @@ Implemented in `backend/app/core/security.py` and `backend/app/api/auth.py`.
 - Rate limiting (`core/rate_limit.SlidingWindowLimiter`):
   - failed attempts per (client address, e-mail): `LOGIN_RATE_LIMIT_ATTEMPTS` (5) within `LOGIN_RATE_LIMIT_WINDOW_SECONDS` (300);
   - all login requests per client address: 30 per 60 seconds;
-  - exceeding either returns HTTP 429 with a `Retry-After` header. A lock-out is audited once per window (`AUTH_LOGIN_RATE_LIMITED`) so that a flood cannot bloat the audit trail. A successful login clears the failure counter for that key.
+  - failed attempts per e-mail, whatever the client address: four times `LOGIN_RATE_LIMIT_ATTEMPTS` (20 by default) within `LOGIN_RATE_LIMIT_WINDOW_SECONDS`. The client address is taken from a forwarding header and can be forged when the API is reachable without a trusted proxy in front of it, so the per-address limits alone would not stop password guessing against one account. Reaching this limit locks sign-in for that e-mail from every address until the window passes;
+  - exceeding any of them returns HTTP 429 with a `Retry-After` header. A lock-out is audited once per window (`AUTH_LOGIN_RATE_LIMITED`) so that a flood cannot bloat the audit trail. A successful login clears the failure counter for that (client address, e-mail) key; the per-e-mail counter is not cleared and empties as the window passes.
 - Successful and failed logins are audited (`AUTH_LOGIN_SUCCESS`, `AUTH_LOGIN_FAILED`).
 
 **Tokens**
@@ -146,7 +149,7 @@ Rules that depend on the object, enforced in the services:
 ## Secrets handling and start-up checks
 
 - **No secret has a default in source code.** `backend/app/core/config.py` reads everything from the environment. With `PROCESS_ROLE=api` the process refuses to start unless `SECRET_KEY` has at least 32 characters and `ALERT_WEBHOOK_TOKEN` at least 16; `DATABASE_URL` is always required.
-- **Production checks.** With `ENVIRONMENT=production` the process refuses to start if `SECRET_KEY`, `ALERT_WEBHOOK_TOKEN`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_OPERATOR_PASSWORD` or `DEMO_APP_RECOVERY_TOKEN` contains a placeholder marker (`change-me`, `changeme`, `replace-me`, `example`, `dev-only`), or if `DATABASE_URL` points at SQLite. In development the same placeholders produce a warning in the log and a flag in `GET /api/settings`.
+- **Production checks.** With `ENVIRONMENT=production` the process refuses to start if `SECRET_KEY`, `ALERT_WEBHOOK_TOKEN`, `BOOTSTRAP_ADMIN_PASSWORD`, `BOOTSTRAP_OPERATOR_PASSWORD`, `DEMO_APP_RECOVERY_TOKEN`, `DEMO_APP_CONTROL_TOKEN` or the database password inside `DATABASE_URL` contains a placeholder marker (`change-me`, `changeme`, `replace-me`, `example`, `dev-only`), or if `DATABASE_URL` points at SQLite. The API also refuses to start in production if `BOOTSTRAP_ADMIN_PASSWORD` or `BOOTSTRAP_OPERATOR_PASSWORD` is set and does not meet the password policy. In development the same placeholders produce a warning in the log and a flag in `GET /api/settings`.
 - **Least distribution.** Compose passes each secret only to the services that need it:
 
   | Secret | backend | worker | test-app | alertmanager |
@@ -175,6 +178,8 @@ Rules that depend on the object, enforced in the services:
 | `postgres`, `worker`, `test-app` | Not published | Not published |
 
 Caddy (`reverse-proxy/Caddyfile`) forwards only `/api/*` to the backend. The backend's `/metrics`, `/health/live`, `/health/ready`, `/docs` and `/openapi.json` are therefore not reachable through the proxy, and neither are Prometheus, Alertmanager, PostgreSQL or the worker. The interactive API documentation is also switched off in production (`ENABLE_API_DOCS` defaults to off there). Caddy's admin API is disabled (`admin off`). `/api/health` and `/api/version` are intentionally reachable without authentication.
+
+Where the API port itself is the public port and no reverse proxy withholds those paths (the single-container image of the [Render and Vercel deployment](deployment-render-vercel.md)), the backend setting `INTERNAL_ENDPOINTS_LOCAL_ONLY=true` makes `/metrics` and `/health/ready` answer HTTP 404 unless the caller is on the loopback interface and the request carries no `X-Forwarded-For` or `Forwarded` header. It is `false` by default and is not used by the Compose stack. `/health/live` stays reachable; in production mode it returns only `{"status": "alive"}`.
 
 Response headers set by Caddy on every response:
 
@@ -279,7 +284,7 @@ Remediation is the most sensitive function of the platform. Its design answers t
 | Process isolation | The API never performs the action. The worker has no inbound port, a read-only root filesystem, no Linux capabilities, the only write access to the workspace and the recovery token | `compose.yaml`, `workers/remediation_worker.py` |
 | State validation at claim time | `claim_next` takes only rows in QUEUED, locks the row (`FOR UPDATE SKIP LOCKED`) so two workers cannot run the same request, and refuses a row that has no recorded approver (`REMEDIATION_EXECUTION_REFUSED`, outcome DENIED) | `workers/remediation_worker.py` |
 | Trusted parameters | Handler parameters are built from the finding or incident row; nothing typed by a user or produced by the assistant reaches a handler | `_build_params`, `workers/actions.py` |
-| Narrow handlers | ACTION-001 calls one HTTP endpoint with the recovery token. ACTION-002 changes two keys of one resource in one allowlisted file, through the same path confinement as the scanner, and writes atomically (temporary file, `fsync`, rename). No shell, no Docker socket | `workers/actions.py` |
+| Narrow handlers | ACTION-001 calls one HTTP endpoint with the recovery token. ACTION-002 changes two keys of one resource in one allowlisted file, through the same path confinement as the scanner, and writes atomically (temporary file, `fsync`, rename; the file gets mode 0640: owner read/write, group read). No shell, no Docker socket | `workers/actions.py` |
 | Timeouts | Action timeout `ACTION_TIMEOUT_SECONDS` (30 s); verification budget `VERIFY_TIMEOUT_SECONDS` (150 s); HTTP timeouts on every call | `_run_with_timeout`, `workers/verification.py` |
 | Retries | Inside ACTION-001 the idempotent recovery call is attempted up to three times with back-off, and not at all after an authorisation failure. A FAILED request can be retried by an Administrator while `attempt_count < max_attempts` (3) | `actions.recover_demo_application`, `remediation_service.retry` |
 | Verification before success | The handler reporting "done" is never enough. ACTION-001 needs three consecutive successful readiness probes, a healthy Prometheus scrape newer than the action, and the alert no longer firing. ACTION-002 needs a new persisted scan in which the rule no longer matches the resource and which itself set the finding to RESOLVED | `workers/verification.py` |
@@ -342,12 +347,12 @@ The demonstration controls can break the demo application on purpose, so they ar
 
 | Gate | Where |
 |---|---|
-| `settings.demo_controls_active` is true only when `DEMO_CONTROLS_ENABLED=true` **and** the environment is not production | `core/config.py` |
+| `settings.demo_controls_active` is true only when `DEMO_CONTROLS_ENABLED=true` **and** the environment is not production. In production mode it is true only if the explicit opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION=true` is set as well (default `false`). The opt-in exists only for a hosted demonstration instance whose only workload is the bundled demo application; the controls stay Administrator-only and audited | `core/config.py` |
 | The production overlay forces `DEMO_CONTROLS_ENABLED=false` on the backend, the worker and the demo application | `compose.prod.yaml` |
 | `POST /api/demo/faults` and `POST /api/demo/reset-config` require `demo:control` (Administrator) and return HTTP 404 when the controls are inactive | `api/demo.py`, `demo_service.ensure_enabled` |
 | The demo application's `/internal/fault` returns 404 unless its own `DEMO_CONTROLS_ENABLED` is true, and requires the control token (constant-time comparison) | `test-app/app.py` |
 | The worker refuses demo tasks when the controls are inactive and seeds the workspace only in demo mode | `workers/remediation_worker.py` |
-| Faults are bounded: the CPU and memory faults end after 10 minutes, the memory block has a fixed size, and the container has memory and CPU limits | `test-app/app.py`, `compose.yaml` |
+| Faults are bounded: the CPU and memory faults end after 10 minutes, the memory block has a fixed size, and the container has memory and CPU limits. A deployment can switch individual fault modes off with `DEMO_DISABLED_FAULTS`; they are then not offered and are refused with HTTP 422 | `test-app/app.py`, `compose.yaml`, `demo_service.py` |
 | The demo application has no published port | `compose.yaml` |
 | Transparency: every use is audited (`DEMO_*`), incidents opened during a fault are flagged `is_simulated`, and the interface shows a demo-mode indicator | `demo_service.py`, `incident_service._handle_firing` |
 
@@ -361,10 +366,11 @@ The recovery endpoint `/internal/recover` is not a demo control: it is the mecha
 |---|---|---|---|---|
 | `worker` | uid 10001 | read-only, `tmpfs` at `/tmp` | all dropped | `no-new-privileges`, no ports |
 | `test-app` | uid 10001 | read-only, `tmpfs` at `/tmp` | all dropped | `no-new-privileges`, 512 MB memory, 1 CPU |
-| `backend` | uid 10001 | writable | default | scan workspace mounted read-only |
+| `backend` | uid 10001 | read-only, `tmpfs` at `/tmp` | all dropped | `no-new-privileges`, scan workspace mounted read-only |
+| `web` | image default | writable | all dropped except `NET_BIND_SERVICE` | `no-new-privileges` |
 | `workspace-init` | root | writable | default | `network_mode: none`, runs once and exits |
 | `prometheus`, `alertmanager` | image defaults | writable | default | configuration files bind-mounted read-only |
-| `web`, `postgres` | image defaults | writable | default | - |
+| `postgres` | image defaults | writable | default | - |
 
 ## Residual risks and limitations
 
@@ -380,12 +386,12 @@ These are known weaknesses of the current build. None of them is hidden by the i
 **Rate limiting**
 
 - **In-process limiters.** Login and assistant limits live in the memory of the single backend process. They reset on restart and would not be shared if the backend were scaled to several processes; the image therefore starts Uvicorn with `--workers 1`. The assistant's daily budget also resets on restart.
-- **Login limiter keys.** Failures are counted per (address, e-mail), with a coarse limit of 30 logins per minute per address. Guessing a few passwords against many accounts from many addresses is slowed but not blocked. There is no account-wide lock-out (which would also let an attacker lock a user out).
+- **Login limiter keys.** Failures are counted per (address, e-mail) and per e-mail regardless of the address, with a coarse limit of 30 logins per minute per address. Guessing a few passwords against many accounts from many addresses is slowed but not blocked. The per-e-mail limit is a temporary account-wide lock-out: someone who knows an account's e-mail can lock that account out of sign-in by failing 20 times (four times `LOGIN_RATE_LIMIT_ATTEMPTS`), until the window passes.
 - **Only login and chat are rate limited.** Other endpoints rely on authentication and on `page_size` limits.
 
 **Trust in forwarded headers**
 
-- **Trusted proxy addresses default to any peer.** Uvicorn is started with `--forwarded-allow-ips` set from `FORWARDED_ALLOW_IPS`, which defaults to `*` so that the client address behind Caddy is recorded correctly without knowing the proxy's container address. Through Caddy this works as intended, because Caddy sets `X-Forwarded-For` itself. A client that can reach the backend port directly (the development port on 127.0.0.1, or another container on the internal network) can spoof its address, which defeats the per-address part of the login limit and falsifies `source_ip` in audit events. Setting `FORWARDED_ALLOW_IPS` to the proxy's address closes this. A caller-supplied `X-Request-ID` is never adopted: the backend always mints its own request id, so a client cannot choose an audit correlation id.
+- **Trusted proxy addresses default to any peer.** Uvicorn is started with `--forwarded-allow-ips` set from `FORWARDED_ALLOW_IPS`, which defaults to `*` so that the client address behind Caddy is recorded correctly without knowing the proxy's container address. Through Caddy this works as intended, because Caddy sets `X-Forwarded-For` itself. A client that can reach the backend port directly (the development port on 127.0.0.1, or another container on the internal network) can spoof its address, which defeats the per-address parts of the login limit (the per-e-mail limit does not depend on the address and still applies) and falsifies `source_ip` in audit events. Setting `FORWARDED_ALLOW_IPS` to the proxy's address closes this. A caller-supplied `X-Request-ID` is never adopted: the backend always mints its own request id, so a client cannot choose an audit correlation id.
 
 **Database**
 
@@ -397,7 +403,7 @@ These are known weaknesses of the current build. None of them is hidden by the i
 
 - **No TLS inside the Docker network.** Caddy to backend, backend to PostgreSQL, Alertmanager to the webhook (bearer token) and worker to demo application (recovery token) are plain HTTP or unencrypted PostgreSQL protocol on the private bridge network.
 - **Flat internal network.** All services share one network. The worker has no inbound port, but it can reach every other service, and outbound internet access is not restricted for any container.
-- **Unauthenticated internal services.** Prometheus, Alertmanager, the backend's `/metrics` and `/health/*`, and the demo application's public endpoints have no authentication and rely on not being published. A container on the internal network could post a fabricated alert to Alertmanager, which would reach the webhook with the valid token.
+- **Unauthenticated internal services.** Prometheus, Alertmanager, the backend's `/metrics` and `/health/*`, and the demo application's public endpoints have no authentication and rely on not being published (in the single-container image, where the API port is the public port, `/metrics` and `/health/ready` rely on `INTERNAL_ENDPOINTS_LOCAL_ONLY` instead). A container on the internal network could post a fabricated alert to Alertmanager, which would reach the webhook with the valid token.
 - **Local stack is plain HTTP.** `compose.yaml` publishes the web port without TLS. It is bound to 127.0.0.1 by default; setting `VIGILOPS_BIND_ADDRESS=0.0.0.0` exposes it to the local network, where credentials and tokens then travel in clear text. Use the production overlay for anything beyond a trusted network.
 - **HSTS without preload.** The Caddyfile sets `Strict-Transport-Security: max-age=31536000` (effective over HTTPS only); it does not include subdomains and the domain is not preloaded, so a visitor's very first request can still be made over HTTP.
 - **Public status endpoints.** `/api/health` and `/api/version` are reachable without authentication. In development they include the version, environment name and uptime; in production mode they return only a status and the project title.
@@ -405,7 +411,7 @@ These are known weaknesses of the current build. None of them is hidden by the i
 **Secrets**
 
 - **Environment variables.** Except for Alertmanager's token, secrets are passed as environment variables and are visible to anyone who can inspect the containers. Bootstrap passwords remain in the backend's environment after first use.
-- **Start-up checks are limited.** The production check looks for placeholder markers in the signing key, webhook token, bootstrap passwords, both demo-application tokens and the password inside `DATABASE_URL`. It measures length and known placeholder text, not randomness, so a weak but unusual secret is accepted.
+- **Start-up checks are limited.** The production check looks for placeholder markers in the signing key, webhook token, bootstrap passwords, both demo-application tokens and the password inside `DATABASE_URL`. It measures length and known placeholder text, not randomness, so a weak but unusual secret is accepted. Only the bootstrap passwords are additionally checked against the password policy.
 
 **Remediation**
 
@@ -422,7 +428,7 @@ These are known weaknesses of the current build. None of them is hidden by the i
 
 **Containers and supply chain**
 
-- **Uneven hardening.** Only the worker and the demo application run with a read-only root filesystem and without capabilities; the backend runs as a non-root user but with a writable filesystem, and Caddy runs with its image defaults.
+- **Uneven hardening.** The backend, the worker and the demo application run as a non-root user with a read-only root filesystem, without capabilities and with `no-new-privileges`. The web container (Caddy) drops all capabilities except `NET_BIND_SERVICE` and sets `no-new-privileges`, but keeps its image's default user and a writable root filesystem. PostgreSQL, Prometheus and Alertmanager run with their image defaults, and the one-shot `workspace-init` container runs as root (without network access).
 - **Unpinned dependencies.** `backend/requirements.txt` specifies version ranges, and base images are referenced by tag rather than digest, so builds are not exactly reproducible.
 
 **Scope**

@@ -49,7 +49,7 @@ repeated here.
 
 | Variable | Value in `.env.example` | Purpose | Used by |
 |---|---|---|---|
-| `ENVIRONMENT` | `development` | `development` or `production` (`test` is used by the test suite). Production mode refuses placeholder secrets and SQLite, turns API docs off and disables demonstration controls. `compose.prod.yaml` forces `production`. | backend, worker |
+| `ENVIRONMENT` | `development` | `development` or `production` (`test` is used by the test suite). Production mode refuses placeholder secrets and SQLite, turns API docs off and disables demonstration controls (unless the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is set). `compose.prod.yaml` forces `production`. | backend, worker |
 | `VIGILOPS_HTTP_PORT` | `8080` | Host port of the web application in the local stack. Ignored by the production overlay, which publishes 80 and 443. | web (port mapping), `run_e2e_demos.py` |
 | `VIGILOPS_BIND_ADDRESS` | `127.0.0.1` | Host interface the web port listens on. `127.0.0.1` means this computer only. `0.0.0.0` makes the local stack reachable from other devices; it speaks plain HTTP, so use that only on a trusted network. Ignored by the production overlay. | web (port mapping) |
 | `BACKEND_DEV_PORT` | `8000` | Host port (127.0.0.1 only) of the backend, for API docs and the Vite dev proxy. | Compose port mapping |
@@ -84,13 +84,15 @@ repeated here.
 
 An account is created at backend start only if no account with that e-mail exists. An empty e-mail
 or password skips the account. Password policy: at least 10 characters, upper-case and lower-case
-letters and a digit, at most 72 bytes.
+letters and a digit, at most 72 bytes. In production mode the API refuses to start if a bootstrap
+password does not meet the policy ("BOOTSTRAP_ADMIN_PASSWORD does not meet the password policy:
+..."); outside production the account is skipped and an error is logged.
 
 ### Demonstration environment
 
 | Variable | Value in `.env.example` | Purpose | Used by |
 |---|---|---|---|
-| `DEMO_CONTROLS_ENABLED` | `true` (Compose default when unset: `false`) | Enables fault injection and sample-configuration reset for Administrators, and makes the worker place the sample configuration in an empty scan workspace. Always off in production mode. | backend, worker, test-app |
+| `DEMO_CONTROLS_ENABLED` | `true` (Compose default when unset: `false`) | Enables fault injection and sample-configuration reset for Administrators, and makes the worker place the sample configuration in an empty scan workspace. Off in production mode unless the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is also set; the production overlay forces it to `false`. | backend, worker, test-app |
 | `DEMO_APP_CONTROL_TOKEN` | placeholder | Token for the demo application's fault-injection and state endpoints. | backend, test-app |
 | `DEMO_APP_RECOVERY_TOKEN` | placeholder | Token for the demo application's recovery endpoint (ACTION-001). The backend does not receive it. | worker, test-app |
 
@@ -114,7 +116,7 @@ letters and a digit, at most 72 bytes.
 
 ## Values set by Compose or by the image
 
-These are not in `.env.example`. Compose or the backend image sets them.
+These are not set in `.env.example`. Compose or the backend image sets them.
 
 | Variable | Value in the stack | Set in | Purpose | Used by |
 |---|---|---|---|---|
@@ -138,6 +140,11 @@ Every field of the `Settings` class in `backend/app/core/config.py`. "Passed by 
 whether `compose.yaml` forwards the variable to a container; if it says no, the code default applies
 in the Compose stack.
 
+Four settings are not passed through by `compose.yaml` and are used by the single-container image
+(`deploy/render/Dockerfile`) described in [deployment-render-vercel.md](deployment-render-vercel.md):
+`ALLOW_DEMO_CONTROLS_IN_PRODUCTION`, `DEMO_DISABLED_FAULTS`, `INTERNAL_ENDPOINTS_LOCAL_ONLY` and
+`RUN_MIGRATIONS_ON_START`.
+
 ### Identity and mode
 
 | Setting | Default in code | Passed by Compose | Purpose | Used by |
@@ -155,11 +162,12 @@ in the Compose stack.
 | `SECRET_KEY` | empty; must be set, 32+ characters for the API role | yes (backend) | JWT signing key. | backend |
 | `ALGORITHM` | `HS256` | no | JWT signing algorithm. | backend |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | yes (backend) | Token lifetime. | backend |
-| `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | no | Failed sign-ins allowed per client address and e-mail within the window. The same limit applies per user to wrong current-password entries on the change-password form. | backend |
-| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | no | Length of that window. | backend |
+| `LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | yes (backend) | Failed sign-ins allowed per client address and e-mail within the window. Four times this value (20 by default) is the number of failed sign-ins allowed per e-mail from all addresses together; reaching it locks sign-in for that e-mail from every address until the window passes. The same limit applies per user to wrong current-password entries on the change-password form. | backend |
+| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | yes (backend) | Length of that window. | backend |
 | `CORS_ORIGINS` | empty | yes (backend) | Allowed browser origins, comma separated. | backend |
 | `ENABLE_API_DOCS` | unset: on outside production, off in production | no | Forces `/docs` and `/openapi.json` on or off. | backend |
 | `ALERT_WEBHOOK_TOKEN` | empty; must be set, 16+ characters for the API role | yes (backend) | Shared token for the alert webhook. | backend |
+| `INTERNAL_ENDPOINTS_LOCAL_ONLY` | `false` | no | When `true`, `/metrics` and `/health/ready` answer HTTP 404 unless the caller is on the loopback interface and the request carries no `X-Forwarded-For` or `Forwarded` header. Needed when the API port itself is the public port. Used by the single-container image. | backend |
 
 Independently of these settings, sign-in requests are also limited to 30 per client address per
 minute (a constant in `backend/app/api/auth.py`).
@@ -169,6 +177,7 @@ minute (a constant in `backend/app/api/auth.py`).
 | Setting | Default in code | Passed by Compose | Purpose | Used by |
 |---|---|---|---|---|
 | `DATABASE_URL` | none; required | yes | SQLAlchemy URL. SQLite is refused in production mode. | backend, worker |
+| `RUN_MIGRATIONS_ON_START` | `false` | no | When `true`, the API applies the Alembic migrations itself when it starts and retries for about two minutes if the database is not ready. The Compose image runs `alembic upgrade head` as a separate step instead. Used by the single-container image. | backend |
 | `BOOTSTRAP_ADMIN_EMAIL` | empty | yes (backend) | First Administrator. | backend |
 | `BOOTSTRAP_ADMIN_PASSWORD` | empty | yes (backend) | First Administrator's password. | backend |
 | `BOOTSTRAP_OPERATOR_EMAIL` | empty | yes (backend) | First Operator. | backend |
@@ -185,15 +194,17 @@ minute (a constant in `backend/app/api/auth.py`).
 | `BACKEND_JOB` | `vigilops-backend` | no | Prometheus job name under which the backend is registered as a monitored resource. | backend |
 | `MONITORING_HTTP_TIMEOUT_SECONDS` | `4.0` | no | Timeout of calls to Prometheus and Alertmanager. | backend, worker |
 | `PROMETHEUS_SCRAPE_INTERVAL_SECONDS` | `5` | yes | A scrape target is marked stale when its last scrape is older than four times this value. | backend, worker |
-| `ALERT_REPEAT_INTERVAL_SECONDS` | `120` | no | Must equal `repeat_interval` in `monitoring/alertmanager.yml`. An active incident is flagged "Signal stale" when no notification has arrived for three times this value plus 60 seconds. | backend |
+| `ALERT_REPEAT_INTERVAL_SECONDS` | `120` | yes | Must equal `repeat_interval` in `monitoring/alertmanager.yml`. An active incident is flagged "Signal stale" when no notification has arrived for three times this value plus 60 seconds. | backend |
 
 ### Demonstration environment
 
 | Setting | Default in code | Passed by Compose | Purpose | Used by |
 |---|---|---|---|---|
-| `DEMO_CONTROLS_ENABLED` | `false` | yes | Demonstration controls; ignored in production. | backend, worker |
+| `DEMO_CONTROLS_ENABLED` | `false` | yes | Demonstration controls; ignored in production unless `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` is `true`. | backend, worker |
 | `DEMO_APP_CONTROL_TOKEN` | empty | yes (backend) | Fault injection and reading the demo application's fault state. | backend |
 | `DEMO_APP_RECOVERY_TOKEN` | empty | yes (worker) | ACTION-001 recovery call. | worker |
+| `ALLOW_DEMO_CONTROLS_IN_PRODUCTION` | `false` | no | Explicit opt-in that keeps the demonstration controls available in production mode when `DEMO_CONTROLS_ENABLED=true`. Only for a hosted demonstration instance whose only workload is the bundled demo application; the controls stay Administrator-only and audited. Used by the single-container image. | backend, worker |
+| `DEMO_DISABLED_FAULTS` | empty | no | Comma-separated fault modes that are not offered, for hosts that cannot run them (for example `cpu,memory`). `GET /api/demo/status` leaves them out of `fault_modes` and `POST /api/demo/faults` answers HTTP 422 for them. Used by the single-container image. | backend |
 
 ### Security scanner
 
@@ -202,7 +213,7 @@ minute (a constant in `backend/app/api/auth.py`).
 | `SECURITY_RULES_DIR` | `<repository>/security-rules` | set by the image | Location of `policies.yaml` and the sample files. | backend, worker |
 | `SCAN_WORKSPACE_DIR` | `<repository>/.runtime/scan-workspace` | set by the image | Directory whose YAML files may be scanned. | backend, worker |
 | `SCAN_MAX_FILE_BYTES` | `262144` | no | Larger files are rejected by the scanner. | backend, worker |
-| `REMEDIATION_WRITABLE_TARGETS` | `cloud-infrastructure.yaml` | no | Comma-separated file names in the workspace that ACTION-002 may modify. The backend uses it to decide whether to offer the action; the worker enforces it again before writing. | backend, worker |
+| `REMEDIATION_WRITABLE_TARGETS` | `cloud-infrastructure.yaml` | yes | Comma-separated file names in the workspace that ACTION-002 may modify. The backend uses it to decide whether to offer the action; the worker enforces it again before writing. | backend, worker |
 
 ### Remediation worker
 
@@ -211,12 +222,12 @@ minute (a constant in `backend/app/api/auth.py`).
 | `WORKER_ID` | `remediation-worker-1` | yes (worker) | Worker identity. | worker |
 | `WORKER_POLL_INTERVAL_SECONDS` | `2.0` | no | Pause between queue polls when idle. | worker |
 | `WORKER_HEARTBEAT_SECONDS` | `10.0` | no | Interval of the heartbeat written between jobs. | worker |
-| `ACTION_TIMEOUT_SECONDS` | `30.0` | no | Execution timeout of one action. | worker; displayed by the backend |
-| `VERIFY_TIMEOUT_SECONDS` | `150.0` | no | Upper bound for verifying ACTION-001. | worker; displayed by the backend |
-| `REMEDIATION_MAX_ATTEMPTS` | `3` | no | Attempts allowed per request; stored on the request when it is created. | backend |
+| `ACTION_TIMEOUT_SECONDS` | `30.0` | yes | Execution timeout of one action. | worker; displayed by the backend |
+| `VERIFY_TIMEOUT_SECONDS` | `150.0` | yes | Upper bound for verifying ACTION-001. | worker; displayed by the backend |
+| `REMEDIATION_MAX_ATTEMPTS` | `3` | yes | Attempts allowed per request; stored on the request when it is created. | backend |
 
-The Settings page shows the backend's values of the two timeouts. If you override them, set the same
-value for both services.
+The Settings page shows the backend's values of the two timeouts. Compose passes them from `.env`
+to both the backend and the worker, so a value set there applies to both services.
 
 ### VigilAI
 
@@ -225,7 +236,7 @@ value for both services.
 | `AI_PROVIDER` | `gemini` | yes (backend) | `gemini` or `none`. | backend |
 | `GEMINI_API_KEY` | empty | yes (backend) | API key. | backend |
 | `GEMINI_MODEL` | `gemini-3.5-flash-lite` | yes (backend) | Model name. | backend |
-| `AI_TIMEOUT_SECONDS` | `20.0` | no | Timeout of one provider call. | backend |
+| `AI_TIMEOUT_SECONDS` | `20.0` | yes (backend) | Timeout of one provider call. | backend |
 | `AI_MAX_OUTPUT_TOKENS` | `800` | no | Output limit requested from the model. | backend |
 | `AI_MAX_INPUT_CHARS` | `1000` | no | Maximum length of a question. Longer messages are rejected with HTTP 422; the chat box enforces the same limit. | backend |
 | `AI_MAX_HISTORY_TURNS` | `6` | no | Earlier conversation turns used as context. | backend |
@@ -246,6 +257,8 @@ value for both services.
 |---|---|---|---|
 | `LOAD_GENERATOR_ENABLED` | `true` | `test-app/app.py` | Turns the demo application's synthetic load generator on or off. Not set by Compose. |
 | `LOAD_INTERVAL_SECONDS` | `0.5` | `test-app/app.py` | Pause between synthetic requests. Not set by Compose. |
+| `HOST` | `0.0.0.0` | `test-app/app.py` | Address the demo application binds to. Not set by Compose; the single-container image sets `127.0.0.1`. |
+| `DEMO_DISABLED_FAULTS` | empty | `test-app/app.py` | The demo application honours the same variable as the backend: its `/internal/fault` endpoint answers HTTP 422 for a listed mode. Not set by Compose. |
 | `VITE_PROXY_TARGET` | `http://127.0.0.1:8000` | `frontend/vite.config.js` | Where `npm run dev` proxies `/api`. |
 | `VITE_API_URL` | empty (same origin) | `frontend/src/api/client.js` | Base URL of the API, fixed at build time. If you point it at another origin you must also set `CORS_ORIGINS`. |
 | `TEST_DATABASE_URL` | unset (temporary SQLite file) | `backend/tests/conftest.py` | Runs the backend tests against PostgreSQL. All tables in that database are dropped by the suite. |
@@ -254,8 +267,17 @@ value for both services.
 
 ## Changing a setting that Compose does not pass through
 
-Settings marked "no" above (for example `REMEDIATION_WRITABLE_TARGETS`, `AI_TIMEOUT_SECONDS` or
-`LOGIN_RATE_LIMIT_ATTEMPTS`) must be added to the service's environment. Editing `compose.yaml` works;
+Settings marked "yes" above that `compose.yaml` fills from `.env` are changed there, followed by
+`docker compose up -d`. That includes the ones `.env.example` lists commented out under "Advanced
+tuning": `ALERT_REPEAT_INTERVAL_SECONDS`, `REMEDIATION_WRITABLE_TARGETS`,
+`REMEDIATION_MAX_ATTEMPTS`, `ACTION_TIMEOUT_SECONDS`, `VERIFY_TIMEOUT_SECONDS`,
+`AI_TIMEOUT_SECONDS`, `LOGIN_RATE_LIMIT_ATTEMPTS`, `LOGIN_RATE_LIMIT_WINDOW_SECONDS` and
+`FORWARDED_ALLOW_IPS`. (`PROMETHEUS_URL`, `ALERTMANAGER_URL`, `DEMO_APP_URL`, `PROCESS_ROLE` and
+`WORKER_ID` are fixed values in `compose.yaml`, and `DATABASE_URL` is built from the `POSTGRES_*`
+variables.)
+
+Settings marked "no" above (for example `AI_MAX_OUTPUT_TOKENS`, `SCAN_MAX_FILE_BYTES` or
+`WORKER_POLL_INTERVAL_SECONDS`) must be added to the service's environment. Editing `compose.yaml` works;
 a separate override file keeps your change apart from the repository's files. Docker Compose merges
 a file named `compose.override.yaml` automatically when you run `docker compose` without `-f`:
 
@@ -264,11 +286,11 @@ a file named `compose.override.yaml` automatically when you run `docker compose`
 services:
   backend:
     environment:
-      AI_TIMEOUT_SECONDS: "30"
-      REMEDIATION_WRITABLE_TARGETS: "cloud-infrastructure.yaml,team-config.yaml"
+      AI_MAX_OUTPUT_TOKENS: "1000"
+      SCAN_MAX_FILE_BYTES: "524288"
   worker:
     environment:
-      REMEDIATION_WRITABLE_TARGETS: "cloud-infrastructure.yaml,team-config.yaml"
+      SCAN_MAX_FILE_BYTES: "524288"
 ```
 
 Then run `docker compose up -d`. With the production overlay, add the file explicitly:
@@ -308,7 +330,8 @@ HTTP 422.
   `DEMO_APP_RECOVERY_TOKEN`, `DEMO_APP_CONTROL_TOKEN` or the password inside `DATABASE_URL` contains
   one of the markers `change-me`, `changeme`, `replace-me`, `example` or `dev-only`. The error
   message names the offending variables. The check looks for these markers only; it does not judge
-  the strength of other values.
+  the strength of other values, with one exception: in production mode the API also refuses to
+  start if a bootstrap password does not meet the password policy.
 - **Each service gets only what it needs.** The worker does not receive `SECRET_KEY`,
   `ALERT_WEBHOOK_TOKEN`, `GEMINI_API_KEY` or the bootstrap passwords. Only the worker and the demo
   application hold `DEMO_APP_RECOVERY_TOKEN`. The web and Prometheus containers receive no secrets;
@@ -415,7 +438,7 @@ Values that are coupled to code and do not follow a change automatically:
 | If you change | Also consider |
 |---|---|
 | `scrape_interval` | `PROMETHEUS_SCRAPE_INTERVAL_SECONDS`, used for the "Stale" marker |
-| `repeat_interval` | The backend setting `ALERT_REPEAT_INTERVAL_SECONDS` (default 120), used for the "Signal stale" badge. Compose does not pass it through, so set it with an override file. |
+| `repeat_interval` | The backend setting `ALERT_REPEAT_INTERVAL_SECONDS` (default 120), used for the "Signal stale" badge. Compose passes it through from `.env`, so set it there. |
 | Job names `demo-app`, `vigilops-backend` | `DEMO_APP_JOB`, `BACKEND_JOB`, and the monitored resources already stored in the database |
 | Alert thresholds | The threshold lines on the Monitoring and Overview charts are fixed in the frontend (20%, 1 s, 80%, 250 MiB) |
 | Alert names | The built-in runbooks in `backend/app/services/recommendations.py` are keyed by alert name; an unknown alert gets a generic runbook |
@@ -440,7 +463,8 @@ The scanner only reads files that sit directly in the scan workspace, a named Do
   `security-rules/samples/baseline/cloud-infrastructure.yaml` into the workspace when it starts and
   finds no YAML file there. "Reset sample configuration" (Settings, tab Demo controls) overwrites
   that file with the baseline again and leaves other files untouched.
-- In production mode, or with demonstration controls disabled, the workspace starts empty.
+- In production mode (unless the hosted-demonstration opt-in `ALLOW_DEMO_CONTROLS_IN_PRODUCTION`
+  is set), or with demonstration controls disabled, the workspace starts empty.
 
 ### Adding, listing and removing files
 
