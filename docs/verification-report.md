@@ -229,3 +229,25 @@ As of 2026-11-23 the Render Blueprint and the Vercel project had not been create
 created from the owner's accounts, and the bootstrap passwords and the Gemini key have to be typed there
 by the owner. Until this paragraph is replaced by a record of the live deployment, treat the hosted
 deployment itself as UNVERIFIED; what is verified is the image and its configuration, as listed above.
+
+## 9. Interface redesign
+
+On 2026-11-23 the visual design of the frontend was replaced (near-black navigation, a paper-coloured
+light theme and a dark theme, one lime accent, IBM Plex Sans and Mono bundled with the application,
+squared status tags, hairline separators). Pages, texts, routes, permissions and API calls are the same;
+on the overview the two severity bar charts became proportional bars with counts, and chart axes keep
+one decimal for small percentages.
+
+| Check | Result |
+|---|---|
+| Frontend unit tests after the change | 24 passed |
+| Frontend production build | succeeded; the typefaces are served from the application's own origin, so the Content-Security-Policy is unchanged |
+| Browser tests against the rebuilt stack | 9 passed (sign-in, navigation, monitoring, role restrictions, assistant, the security remediation workflow with two users, phone-sized layout) |
+| Every page reviewed in screenshots | 17 views in the dark theme and 17 in the light theme, plus sign-in, overview, incidents, the navigation drawer and the assistant at phone size (`node tests/e2e/screenshots.js`) |
+
+One real provider failure was observed during these runs and is recorded here because sections 6 and 7
+say none had been: the Gemini API answered one request with HTTP 504 `DEADLINE_EXCEEDED`. VigilAI
+retried once, then answered from the documentation with the "could not be reached" notice, 22.3 s after
+the question. The browser test waited only 15 s for the answer and failed; its wait is now 50 s, within
+the 60 s the chat request allows. A client-side timeout (no answer within `AI_TIMEOUT_SECONDS`) and a
+quota error (HTTP 429) remain unobserved.
