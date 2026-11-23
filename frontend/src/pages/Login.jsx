@@ -5,9 +5,11 @@ import { errorMessage } from '../api/client';
 import { Brand } from '../components/Sidebar';
 import { Spinner } from '../components/States';
 import { useAuth } from '../context/AuthContext';
+import { useServerStatus } from '../hooks/useServerStatus';
 
 export default function Login() {
   const { user, loading, login, sessionMessage } = useAuth();
+  const server = useServerStatus();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -56,6 +58,26 @@ export default function Login() {
               {error}
             </p>
           ) : null}
+          {server.status === 'starting' && !error ? (
+            <p role="status" className="mt-4 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-content">
+              <Spinner size={16} />
+              <span>
+                The server is starting. On hosting that sleeps when nobody is using it, this takes about a minute. You can sign in as soon
+                as it is ready; there is no need to reload the page.
+              </span>
+            </p>
+          ) : null}
+          {server.status === 'unreachable' && !error ? (
+            <p role="alert" className="mt-4 flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-content">
+              <AlertCircle size={16} className="mt-0.5 shrink-0 text-danger" aria-hidden="true" />
+              <span>
+                The server is not answering.{' '}
+                <button type="button" className="font-medium underline" onClick={server.retry}>
+                  Check again
+                </button>
+              </span>
+            </p>
+          ) : null}
 
           <form className="mt-5 space-y-4" onSubmit={submit} noValidate>
             <div>
@@ -97,9 +119,13 @@ export default function Login() {
                 </button>
               </div>
             </div>
-            <button type="submit" className="btn-primary w-full" disabled={submitting || !email.trim() || !password}>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={submitting || !email.trim() || !password || server.status === 'starting'}
+            >
               {submitting ? <Spinner size={16} /> : <LogIn size={16} aria-hidden="true" />}
-              {submitting ? 'Signing in…' : 'Sign in'}
+              {submitting ? 'Signing in…' : server.status === 'starting' ? 'Waiting for the server…' : 'Sign in'}
             </button>
           </form>
         </div>
