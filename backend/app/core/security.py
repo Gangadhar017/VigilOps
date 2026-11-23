@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import hmac
-import re
 import uuid
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -13,32 +13,31 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
+from app.core.config import MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, password_problem, settings  # noqa: F401 - limits re-exported
 from app.core.database import get_db, utcnow
 from app.models.models import RevokedToken, User
 
 bearer_scheme = HTTPBearer(auto_error=False, description="JWT access token from /api/auth/login")
 
-# bcrypt only considers the first 72 bytes; longer inputs are rejected rather
-# than silently truncated.
-MAX_PASSWORD_BYTES = 72
-MIN_PASSWORD_LENGTH = 10
+@lru_cache(maxsize=1)
+def _dummy_hash() -> str:
+    """A valid hash used to equalise timing when the e-mail is unknown.
 
-# A valid hash used to equalise timing when the e-mail is unknown.
-_DUMMY_HASH = bcrypt.hashpw(b"vigilops-timing-equaliser", bcrypt.gensalt(rounds=12)).decode()
+    Computed on first use rather than at import: one bcrypt hash costs a few
+    seconds of start-up time on a host with a small CPU share, in every process
+    that imports this module.
+    """
+    return bcrypt.hashpw(b"vigilops-timing-equaliser", bcrypt.gensalt(rounds=12)).decode()
 
 
 def validate_password_strength(password: str) -> Optional[str]:
-    """Return a human-readable problem, or None when the password is acceptable."""
-    if len(password) < MIN_PASSWORD_LENGTH:
-        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters long."
-    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
-        return f"Password must be at most {MAX_PASSWORD_BYTES} bytes long."
-    if not re.search(r"[a-z]", password) or not re.search(r"[A-Z]", password):
-        return "Password must contain both upper-case and lower-case letters."
-    if not re.search(r"\d", password):
-        return "Password must contain at least one digit."
-    return None
+    """Return a human-readable problem, or None when the password is acceptable.
+
+    The rule itself lives in ``core.config`` so that the start-up check of the
+    bootstrap passwords and the API apply exactly the same policy.  bcrypt only
+    considers the first 72 bytes; longer inputs are rejected, not truncated.
+    """
+    return password_problem(password)
 
 
 def hash_password(password: str) -> str:
@@ -54,7 +53,7 @@ def verify_password(plain_password: str, password_hash: Optional[str]) -> bool:
     else:
         oversized = False
     try:
-        matched = bcrypt.checkpw(encoded, (password_hash or _DUMMY_HASH).encode("utf-8"))
+        matched = bcrypt.checkpw(encoded, (password_hash or _dummy_hash()).encode("utf-8"))
     except ValueError:
         matched = False
     return bool(matched and password_hash and not oversized)

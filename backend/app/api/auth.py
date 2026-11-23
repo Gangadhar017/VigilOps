@@ -30,6 +30,15 @@ login_failures = SlidingWindowLimiter(
     settings.LOGIN_RATE_LIMIT_ATTEMPTS, settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS
 )
 login_requests_per_ip = SlidingWindowLimiter(30, 60)
+# Failures per e-mail, whatever the client address.  The address is taken from
+# a forwarding header and can be forged when the API is reachable without a
+# trusted proxy in front of it, so the per-address limits alone would not stop
+# password guessing against one account.  The allowance is wider than the
+# per-address one so that one mistyping user does not lock out the others
+# behind the same account name for long.
+login_failures_per_email = SlidingWindowLimiter(
+    settings.LOGIN_RATE_LIMIT_ATTEMPTS * 4, settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS
+)
 _lockout_audit = SlidingWindowLimiter(1, settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS)
 # Wrong current-password attempts on the change-password form (per user).
 password_change_failures = SlidingWindowLimiter(
@@ -41,6 +50,7 @@ def reset_login_limits() -> None:
     """Clear in-memory limiter state (used by tests)."""
     login_failures.clear()
     login_requests_per_ip.clear()
+    login_failures_per_email.clear()
     _lockout_audit.clear()
     password_change_failures.clear()
 
@@ -64,8 +74,9 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
     allowed_ip, retry_ip = login_requests_per_ip.allow(ip)
     allowed_key, retry_key = login_failures.check(key)
-    if not allowed_ip or not allowed_key:
-        retry_after = max(retry_ip, retry_key)
+    allowed_email, retry_email = login_failures_per_email.check(payload.email)
+    if not allowed_ip or not allowed_key or not allowed_email:
+        retry_after = max(retry_ip, retry_key, retry_email)
         # Audit a lock-out once per window, so a flood cannot bloat the audit trail.
         if _lockout_audit.allow(key)[0]:
             record_audit(
@@ -89,6 +100,7 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
     if user is None or not password_ok or not user.is_active:
         login_failures.hit(key)
+        login_failures_per_email.hit(payload.email)
         record_audit(
             db,
             action="AUTH_LOGIN_FAILED",
