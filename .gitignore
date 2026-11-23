@@ -51,3 +51,12 @@ Thumbs.db
 # Docker volumes
 pgdata/
 prometheus_data/
+
+# VigilOps local runtime
+.runtime/
+test-results/
+playwright-report/
+frontend/coverage/
+
+# Database backups (contain password hashes)
+backups/

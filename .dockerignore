@@ -1,0 +1,21 @@
+# Keep build contexts small and keep secrets out of images.
+.git
+.github
+.venv
+.runtime
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/.vite
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/tests
+tests
+docs
+test-results
+playwright-report
+*.md
+!knowledge_base/*.md
