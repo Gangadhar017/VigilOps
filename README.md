@@ -1,5 +1,7 @@
 # VigilOps: Secure Cloud Operations
 
+[![VigilOps CI](https://github.com/Gangadhar017/VigilOps/actions/workflows/ci.yml/badge.svg)](https://github.com/Gangadhar017/VigilOps/actions/workflows/ci.yml)
+
 B.Tech CSE (Cloud Computing and Virtualization) major project, built by a team of five students.
 
 ## Project introduction

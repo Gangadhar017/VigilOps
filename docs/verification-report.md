@@ -26,6 +26,10 @@ This report records what was actually run and what happened. Anything that was n
 | Prometheus configuration | `promtool check config` | success, 5 rules |
 | Alertmanager configuration | `amtool check-config` | success, 1 receiver |
 | Compose files | `docker compose config` (local and production overlay) | valid |
+| GitHub Actions workflow on a GitHub-hosted Ubuntu runner (run 45170977487, commit `fc5bb92`, push to `main`) | `.github/workflows/ci.yml` | **5 of 5 jobs succeeded**: backend lint and tests on SQLite, the same on PostgreSQL 16, frontend tests and build, configuration validation, and the full stack (built in 48 s, `verify_stack.sh`, then the three demonstrations in 237 s) |
+
+All rows except the last were run on the Windows 11 host described above. The CI run had no Gemini key,
+so its VigilAI demonstration ran in documentation mode.
 
 ## 2. Verification by phase
 
@@ -132,9 +136,9 @@ regression test or check.
 | Quality of generated answers beyond the checks in section 7 | the answers were checked with keyword grounding checks and by reading them; one model, ten generated answers per run | a larger fixed question set judged by people |
 | Behaviour when the provider's quota is really exhausted (HTTP 429), and a real provider timeout | neither occurred during testing, and the quota was not exhausted on purpose | observe one 429 from the provider and confirm the fallback notice; until then these paths are covered by tests with a stubbed SDK client |
 | Public deployment on a real domain with a public certificate | no server or domain available | deploy with `compose.prod.yaml`; HTTPS was verified only for `localhost` with Caddy's internal certificate |
-| Ubuntu Linux host | only Windows 11 with Docker Desktop was available | run the same commands on Linux |
-| GitHub Actions workflow | nothing was pushed, so the workflow has not run | push the branch and check the run; every command in it was run locally except `ruff` and `pytest` inside GitHub's runner |
-| Symlink-escape test | creating symlinks needs elevated rights on this Windows host | runs on Linux and in CI |
+| An Ubuntu machine of your own | on Linux the stack was built, health-checked and put through the three demonstrations only on a GitHub-hosted Ubuntu runner (section 1); the installation steps in `setup.md` for Ubuntu were not followed on a separately installed host | follow `setup.md` on the target machine |
+| Symlink-escape test on this host | creating symlinks needs elevated rights on Windows, so the test is skipped here | on the Ubuntu CI runner symlinks can be created, so the test is not skipped there, and both backend jobs succeeded; the job log was not read to confirm the individual test line |
+| The alert-rule, browser and live-Gemini suites in CI | the workflow runs lint, the backend and frontend suites, configuration validation and the three demonstrations; `verify_alert_rules.py`, the Playwright tests and `verify_gemini_live.py` were run locally only | add them to the workflow (the Gemini script needs a repository secret) |
 | Load and concurrency behaviour | out of scope for this project | — |
 | Firefox, Safari, Edge | browser tests use Chromium only | add Playwright projects |
 | Documents under `docs/college/` | written from the code and reviewed for the corrected facts, but not every sentence was re-checked after the hardening pass | read before submission |
