@@ -37,7 +37,7 @@ export function RequestRemediation({ automation, sourceType, sourceId, activeReq
 
   if (!automation?.supported) {
     return (
-      <div className="rounded-lg border border-line bg-raised/50 p-3">
+      <div className="rounded-md border border-line bg-raised/50 p-3">
         <p className="flex items-center gap-2 text-sm font-medium text-content">
           <Ban size={15} className="text-muted" aria-hidden="true" /> Automated remediation is not available
         </p>
@@ -48,7 +48,7 @@ export function RequestRemediation({ automation, sourceType, sourceId, activeReq
 
   const action = automation.action;
   return (
-    <div className="rounded-lg border border-brand/30 bg-brand/5 p-3">
+    <div className="rounded-md border border-brand/30 bg-brand/5 p-3">
       <p className="flex items-center gap-2 text-sm font-medium text-content">
         <Wrench size={15} className="text-brand" aria-hidden="true" />
         {action.code} · {action.name}
@@ -56,7 +56,7 @@ export function RequestRemediation({ automation, sourceType, sourceId, activeReq
       <p className="mt-1 text-sm text-muted">{action.description}</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <div>
-          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+          <p className="mb-1 flex items-center gap-1.5 eyebrow">
             <ListChecks size={12} aria-hidden="true" /> What the worker does
           </p>
           <ul className="list-disc space-y-1 pl-5 text-xs text-content">
@@ -66,7 +66,7 @@ export function RequestRemediation({ automation, sourceType, sourceId, activeReq
           </ul>
         </div>
         <div>
-          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+          <p className="mb-1 flex items-center gap-1.5 eyebrow">
             <ShieldCheck size={12} aria-hidden="true" /> How success is verified
           </p>
           <ul className="list-disc space-y-1 pl-5 text-xs text-content">

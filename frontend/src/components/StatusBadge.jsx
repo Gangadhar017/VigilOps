@@ -2,12 +2,12 @@ import React from 'react';
 import { titleCase } from '../utils/format';
 
 const TONES = {
-  success: 'border-ok/40 bg-ok/10 text-ok',
-  danger: 'border-danger/40 bg-danger/10 text-danger',
-  warning: 'border-warn/40 bg-warn/10 text-warn',
-  info: 'border-info/40 bg-info/10 text-info',
-  brand: 'border-brand/40 bg-brand/10 text-brand',
-  neutral: 'border-line bg-raised text-muted',
+  success: 'border-ok/30 bg-ok/10 text-ok',
+  danger: 'border-danger/35 bg-danger/10 text-danger',
+  warning: 'border-warn/35 bg-warn/10 text-warn',
+  info: 'border-info/30 bg-info/10 text-info',
+  brand: 'border-brand/35 bg-brand/10 text-brand',
+  neutral: 'border-line bg-raised/70 text-muted',
 };
 
 // One place that decides how every status / severity in the platform looks.
@@ -35,7 +35,7 @@ export function StatusBadge({ status, label, tone, icon: Icon, className = '' })
   const resolved = tone || toneFor(status);
   return (
     <span className={`badge ${TONES[resolved] || TONES.neutral} ${className}`}>
-      {Icon ? <Icon size={12} aria-hidden="true" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />}
+      {Icon ? <Icon size={11} aria-hidden="true" /> : <span className="h-1.5 w-1.5 rounded-[1px] bg-current" aria-hidden="true" />}
       {label || titleCase(status || 'unknown')}
     </span>
   );

@@ -42,7 +42,7 @@ export function DataTable({
                   {column.sortable && onSort ? (
                     <button
                       type="button"
-                      className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-content"
+                      className="inline-flex items-center gap-1 uppercase tracking-[0.1em] transition-colors hover:text-content"
                       onClick={() => onSort(sortKey)}
                     >
                       {column.header}
@@ -94,8 +94,8 @@ export function Pagination({ page, pageSize, total, onPageChange }) {
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
   return (
-    <nav className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-xs text-muted" aria-label="Pagination">
-      <span>
+    <nav className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 font-mono text-[11px] text-muted" aria-label="Pagination">
+      <span className="tabular-nums">
         Showing {from}–{to} of {total}
       </span>
       <div className="flex items-center gap-2">

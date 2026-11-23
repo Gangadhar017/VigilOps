@@ -80,11 +80,17 @@ export function formatMetric(value, unit, key) {
 /** Axis tick formatter matching formatMetric but shorter. */
 export function formatAxis(value, unit) {
   if (value === null || value === undefined) return '';
+  // Small percentages keep one decimal, so neighbouring axis ticks do not round to the same label.
+  const percent = (ratio) => {
+    const points = ratio * 100;
+    if (points === 0) return '0%';
+    return Math.abs(points) < 10 ? `${points.toFixed(1)}%` : `${Math.round(points)}%`;
+  };
   switch (unit) {
     case 'ratio':
-      return `${Math.round(value * 100)}%`;
+      return percent(value);
     case 'cores':
-      return `${Math.round(value * 100)}%`;
+      return percent(value);
     case 'seconds':
       return value < 1 ? `${Math.round(value * 1000)}ms` : `${value.toFixed(1)}s`;
     case 'bytes':

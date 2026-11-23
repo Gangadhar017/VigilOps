@@ -25,9 +25,9 @@ export function SearchInput({ value, onChange, placeholder = 'Search…', label 
 
 export function SelectFilter({ label, value, onChange, options, allLabel = 'All' }) {
   return (
-    <label className="flex items-center gap-2 text-xs text-muted">
-      <span className="whitespace-nowrap">{label}</span>
-      <select className="input w-auto py-1.5 text-sm" value={value} onChange={(event) => onChange(event.target.value)}>
+    <label className="flex items-center gap-2">
+      <span className="eyebrow whitespace-nowrap">{label}</span>
+      <select className="input w-auto" value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{allLabel}</option>
         {options.map((option) => {
           const item = typeof option === 'string' ? { value: option, label: option.replace(/_/g, ' ') } : option;
@@ -43,5 +43,5 @@ export function SelectFilter({ label, value, onChange, options, allLabel = 'All'
 }
 
 export function FilterBar({ children }) {
-  return <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">{children}</div>;
+  return <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b border-line bg-raised/30 px-4 py-2.5">{children}</div>;
 }

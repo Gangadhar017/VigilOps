@@ -28,13 +28,13 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }) {
   if (!open) return null;
   const widths = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-3xl' };
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 p-0 sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/65 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}>
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`card flex max-h-[90vh] w-full flex-col shadow-pop ${widths[size] || widths.md} rounded-b-none sm:rounded-b-xl`}
+        className={`card flex max-h-[90vh] w-full flex-col shadow-pop ${widths[size] || widths.md} rounded-b-none sm:rounded-b-lg`}
       >
         <div className="card-header">
           <h2 className="card-title">{title}</h2>
@@ -89,7 +89,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      {description ? <p className="text-sm text-muted">{description}</p> : null}
+      {description ? <p className="text-[13px] leading-5 text-muted">{description}</p> : null}
       {noteLabel ? (
         <div className="mt-3">
           <label className="label" htmlFor="confirm-note">
@@ -111,7 +111,7 @@ export function ConfirmDialog({
       ) : null}
       {extra}
       {error ? (
-        <p role="alert" className="mt-3 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-content">
+        <p role="alert" className="mt-3 rounded-md border border-l-2 border-danger/30 border-l-danger bg-danger/[0.07] px-3 py-2 text-[13px] text-content">
           {error}
         </p>
       ) : null}

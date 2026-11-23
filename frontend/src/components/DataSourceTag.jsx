@@ -1,12 +1,15 @@
 import React from 'react';
-import { FlaskConical, Radio } from 'lucide-react';
+import { FlaskConical } from 'lucide-react';
 import { formatTime } from '../utils/format';
 
 /** Marks a value as live telemetry read from Prometheus. */
 export function LiveTag({ at, label = 'Live · Prometheus' }) {
   return (
     <span className="tag" title="Measured values queried from Prometheus by the backend">
-      <Radio size={11} className="text-ok" aria-hidden="true" />
+      <span className="relative mr-0.5 flex h-1.5 w-1.5" aria-hidden="true">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-ok" />
+      </span>
       {label}
       {at ? ` · ${formatTime(at)}` : ''}
     </span>
