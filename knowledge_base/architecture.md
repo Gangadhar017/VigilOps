@@ -8,7 +8,7 @@ VigilOps runs as a set of Docker Compose services on one private network:
 - postgres: PostgreSQL 16, the operational database (users, incidents, findings, scans, remediation, audit).
 - prometheus: scrapes metrics and evaluates alert rules.
 - alertmanager: groups alerts and sends them to the backend webhook.
-- test-app: the monitored demonstration application.
+- test-app: the monitored demonstration application, OrbitCrate, a demonstration storefront. Its page is public at /orbitcrate/; its control endpoints, /metrics and /health are not routed.
 
 ## Request flow
 Browser -> Caddy (web) -> React frontend and /api -> FastAPI backend -> PostgreSQL. The backend reads monitoring data from Prometheus over the internal network. The browser never talks to Prometheus, Alertmanager, PostgreSQL or the worker directly.
