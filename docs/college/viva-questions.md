@@ -1,15 +1,15 @@
 # VigilOps: Secure Cloud Operations - Viva Questions and Model Answers
 
-Ninety-eight questions with model answers, grouped by topic. Every answer describes this implementation and names the file or mechanism behind it, so that a member can open the code and show it.
+One hundred and six questions with model answers, grouped by topic. Every answer describes this implementation and names the file or mechanism behind it, so that a member can open the code and show it.
 
-> **To be filled in by the team:** institution, guide, and the names and roll numbers of Member 1 to Member 5.
+> **To be filled in by the team:** institution, guide, and the names and roll numbers of Member 1 to Member 4.
 
 ## How to use this file
 
 - Read the code named in an answer before the viva; do not memorise the wording.
 - Never quote a number from memory. Timings, test counts and other measured values are in [`../evaluation.md`](../evaluation.md) and [`../verification-report.md`](../verification-report.md). Values stated here (for example "five failures in five minutes") are configuration defaults read from the code, not measurements.
 - Be direct about what was not verified: real exhaustion of the Google Gemini quota (live generation itself was verified with a real API key, on a small question set with one model and without a systematic human evaluation) and deployment with public HTTPS on a real domain.
-- All five members must be able to answer every section; see [`team-responsibilities.md`](team-responsibilities.md).
+- All four members must be able to answer every section; see [`team-responsibilities.md`](team-responsibilities.md).
 - Questions marked **(hard)** are the ones an examiner is most likely to press on.
 
 ## Topics
@@ -26,7 +26,7 @@ Ninety-eight questions with model answers, grouped by topic. Every answer descri
 | Docker | 32 - 35 | API security | 84 - 88 |
 | Authentication | 36 - 40 | Deployment | 89 - 93 |
 | RBAC | 41 - 44 | Testing | 94 - 98 |
-| IAM | 45 - 47 | | |
+| IAM | 45 - 47 | Demonstration application and public pages | 99 - 106 |
 
 ---
 
@@ -462,4 +462,38 @@ Application failure and recovery, security misconfiguration, and VigilAI. `pytho
 
 **Q98. What did you not test?**
 
-Real exhaustion of the Gemini quota and a systematic human evaluation of generated answers (live Gemini generation itself was verified with a real API key), deployment with public HTTPS, behaviour under load or over long periods, and browsers other than Chromium. The user interface is covered by component tests and by nine Playwright tests in Chromium, which include the complete security remediation workflow with two users; the application failure and recovery demonstration is automated at the API level only. We list these openly so that a result is not read as broader than it is.
+Real exhaustion of the Gemini quota and a systematic human evaluation of generated answers (live Gemini generation itself was verified with a real API key), deployment with public HTTPS, behaviour under load or over long periods, and browsers other than Chromium. The user interface is covered by component tests and by sixteen Playwright tests in Chromium, which include the complete security remediation workflow with two users, the product page and an order placed in the demonstration store; the application failure and recovery demonstration is automated at the API level only. We list these openly so that a result is not read as broader than it is.
+
+## Demonstration application and public pages
+
+**Q99. What is OrbitCrate, and why did you build it instead of monitoring a real application?**
+
+OrbitCrate (`test-app/app.py` and `test-app/static/`) is the workload that the platform monitors: the storefront of a fictional cloud-hosting provider with four server plans, three regions, add-ons, a price calculator and orders. We needed a workload whose behaviour we control completely, so that an outage, an error burst or slow responses can be produced on demand and removed again, and one that a visitor can see and use. Its orders are not real and the page says so, but every request is a real HTTP request, counted and timed by middleware and exported to Prometheus. Monitoring somebody else's production application was neither available to us nor safe to break in front of an examiner.
+
+**Q100. If the orders are fake, what exactly is real about the demonstration? (hard)**
+
+The measurements. The request counter and the latency histogram are updated by middleware for every request, CPU and memory come from the process itself, and Prometheus scrapes them every five seconds. When a fault is injected the application really refuses requests (HTTP 503), really answers most store requests with HTTP 500, or really takes about 1.5 seconds; the alert that fires is evaluated on those numbers. What is not real is the business: nothing is provisioned or charged, the order status follows from the order's age, and most of the traffic comes from the built-in synthetic load generator. We say this on the store's own page, on the product page and in the limitations.
+
+**Q101. The store is public. Could a visitor use it to reach the control endpoints or the metrics?**
+
+No. In the Compose stack `reverse-proxy/Caddyfile` removes the `/orbitcrate` prefix and forwards only `/`, `/static/*` and `/api/*`; every other path, including `/internal/*`, `/metrics` and `/health/*`, answers HTTP 404 at the proxy and never reaches the application. A request body is limited to 4 KB. The control endpoints additionally need a bearer token that only the API (fault injection) or the worker (recovery) holds. On the single-container image there is no proxy, so the API passes the storefront through itself (`backend/app/api/store.py`, setting `SERVE_DEMO_APP`) with the same path restriction, a fixed list of forwarded headers, a 4096-byte body limit and a per-address rate limit. Both paths are tested: `tests/e2e/specs/public.spec.js` for the proxy and `backend/tests/integration/test_store_proxy.py` for the pass-through.
+
+**Q102. How does the store know which orders belong to which visitor without accounts?**
+
+The page creates a random identifier in the browser, keeps it in local storage and sends it in the `X-Session-Id` header. The application keeps the orders of each identifier in memory. There are no names, e-mail addresses or passwords in the store. Because it is a demonstration, the storage is bounded: at most 300 visitors (the least recently used is forgotten), 20 orders per visitor and 12 new orders per visitor per minute. Orders disappear when the container restarts. An identifier is not a secret credential; it only separates visitors' demonstration data.
+
+**Q103. What is the "store pulse" panel, and is it part of the monitoring?**
+
+It is a small panel in the store that shows the response time of every request the page itself makes to the store API, measured in the browser, as green, amber (slower than 0.8 s) or red (failed) bars. It is not part of the platform's monitoring and Prometheus does not read it. Its purpose is to make a fault visible where a user would feel it, next to the platform's own view of the same fault. The values on the Monitoring page come only from Prometheus.
+
+**Q104. Why does the platform have a public product page, and what stops it from making claims the system does not keep?**
+
+The product page (`frontend/src/pages/Landing.jsx`) is shown at the site root to a visitor who is not signed in. It explains what the platform does before asking for credentials, like the product pages of commercial tools. Everything on it is a statement about the implementation: the numbers of alert rules, security rules, actions and roles are the real ones, the permission table mirrors `backend/app/core/permissions.py`, and the screens are captures of the running console. It contains no customer names, no testimonials and no performance figures. It offers sign-in only, because accounts are created by an Administrator.
+
+**Q105. Show me a remediation that fails. What does the platform do? (hard)**
+
+`scripts/run_failed_remediation_demo.py` stops the application's container, which is a real outage and not an injected fault, so the incident carries no "Simulated fault" label. ACTION-001 is requested, approved and dispatched. The worker calls the recovery endpoint three times with back-off, cannot connect, and the request ends as FAILED with the reason "The recovery endpoint could not be reached after 3 attempts." The incident stays open, the failure is written to its timeline and to the audit trail with the outcome FAILURE, and resolving the incident by hand is refused while the alert is firing. After the container is started again an Administrator retries the request; the second attempt is executed and verified and both attempts stay on record. The recorded run is `docs/evidence/failed-remediation.json`.
+
+**Q106. Why can the platform not simply restart the stopped container itself?**
+
+Because that would need access to the Docker daemon, and access to the Docker daemon is equivalent to root on the host. The worker is deliberately limited to two registered actions: one HTTP call to the application's recovery endpoint and one edit of an allow-listed file. This keeps the damage of a compromised worker small. The price is that a stopped container must be started by a person or by the container runtime's own restart policy, and the platform reports that honestly as a failed remediation instead of hiding it. Starting a stopped container through a separately designed, narrowly scoped mechanism is listed in the future scope.

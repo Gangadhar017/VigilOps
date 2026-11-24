@@ -1,18 +1,20 @@
 # VigilOps: Secure Cloud Operations - Live Demonstration Script
 
-A timed script for the project demonstration (about 12 to 15 minutes). It follows the three demonstrations of the project specification step by step. Page, tab and button names are written exactly as they appear in the application.
+A timed script for the project demonstration (about 15 minutes). It follows the three demonstrations of the project specification step by step. Page, tab and button names are written exactly as they appear in the application.
 
-> **To be filled in by the team:** who operates the Administrator window, who operates the Operator window, and who speaks for each demonstration (Member 1 to Member 5).
+> **To be filled in by the team:** who operates the Administrator window, who operates the Operator window, and who speaks for each demonstration (Member 1 to Member 4; a suggested assignment is in [`team-responsibilities.md`](team-responsibilities.md)).
 
 ## Plan
 
 | Part | Content | Planned time |
 |---|---|---|
 | Preparation | Done before the examiner arrives | - |
+| Opening | The product page and OrbitCrate, the monitored application (2 steps) | about 1 minute |
 | DEMO 1 | Application failure and recovery (12 steps) | about 6 minutes |
 | DEMO 2 | Security misconfiguration (10 steps) | about 4 minutes |
 | DEMO 3 | VigilAI (7 steps) | about 3 minutes |
-| Reserve | Questions during the demonstration | about 2 minutes |
+| DEMO 4 (optional) | A remediation that fails, and its retry | about 3 minutes, only if time allows |
+| Reserve | Questions during the demonstration | about 1 minute |
 
 The planned times are a speaking plan, not measurements. Measured timings of the platform are in [`../evaluation.md`](../evaluation.md).
 
@@ -29,6 +31,8 @@ Do all of this before the audience is present.
 7. **Clean leftovers** (see "Resetting between runs"): close the resolved incident of an earlier run, cancel any remediation request still waiting, clear the VigilAI conversation.
 8. **Know the assistant's mode.** Settings, tab "Platform", card "VigilAI" shows either "Documentation mode" (no Gemini key) or "Live AI configured". This build was verified in both modes; live AI mode was verified on 2026-11-23 with a real API key (see [`../verification-report.md`](../verification-report.md)). The demonstration can be given in live AI mode. If the key or the provider's quota is unavailable on the day, give it in documentation mode, which is the fallback.
 9. **A terminal** open in the repository root for the fallback commands, and the Help page ("VigilAI / Help" in the sidebar) open in a spare tab: its "Guided workflows" section lists the same steps.
+10. **A third tab, not signed in,** at `http://localhost:8080/orbitcrate/`: the store. Keep it for the opening and for Step 3 of DEMO 1. For the product page use a private window (or `http://localhost:8080/welcome`), because a signed-in tab shows the Overview at the site root.
+11. **The recorded fallback.** Record the walkthrough once on the demonstration machine (`cd tests/e2e`, `node record-demo.js`) and keep `recordings/vigilops-demo.webm` ready to play. It is a recording of this installation, so it shows what the examiner would have seen.
 
 ## Waiting times and their causes
 
@@ -41,6 +45,24 @@ Do all of this before the audience is present.
 | Very short | ACTION-002 completes | The worker polls its queue every few seconds; the action edits one file and runs one scan |
 
 Use each wait to explain what the platform is waiting for. Do not fill it with claims about speed.
+
+---
+
+## Opening - the product page and the monitored application
+
+### Step 1 - Product page
+
+- **Who:** Any member, in a window that is not signed in.
+- **Do:** Open the site root. Scroll once through "Capabilities", "How it works", "Architecture" and "Roles and safeguards".
+- **Say:** "This is the public page of the platform. It states what the platform does today: six capabilities, one workflow from a signal to a verified fix, seven containers, two roles. It offers sign-in only. There is no registration, because accounts are created by an Administrator."
+- **Audience sees:** The product page with captures of the real console, the line "Demonstration environment is ready", and the "Sign in" button.
+
+### Step 2 - OrbitCrate, the application being monitored
+
+- **Who:** The same member, in the store tab.
+- **Do:** Press "Open the demo application" (or switch to the store tab). Choose a plan, tick "Daily backups", type a project name and press "Place order".
+- **Say:** "OrbitCrate is a demonstration store we built as the workload. Its orders are not real and nothing is charged; the page says so. Every request is real, though: the price is calculated by the store's API, and each request is counted and timed for Prometheus. The 'Store pulse' panel shows the response time of every request this page makes, measured in the browser."
+- **Audience sees:** The price summary changing with each choice, the order moving from "Received" to "Provisioning" to "Active", and green bars in "Store pulse".
 
 ---
 
@@ -66,6 +88,7 @@ Use each wait to explain what the platform is waiting for. Do not fill it with c
 - **Do:** Sidebar "Settings", tab "Demo controls". In "Controlled faults on the demo application" press "Inject" on the row "Outage"; in the dialog press "Inject fault".
 - **Say:** "This control exists only in the local demonstration environment and only for Administrators. It puts the demonstration application into a failed state in which every service endpoint, including its metrics endpoint, answers HTTP 503. The use of the control is itself recorded in the audit trail."
 - **Audience sees:** A confirmation message and the badge "Active fault: outage". If the examiner asks what an Operator sees: the same tab is visible in the Operator window, but its buttons are disabled, with the note "Only an Administrator can use the demonstration controls."; the fault state itself is reported to Administrators only, so the status badge in the Operator window is not meaningful.
+- **Show the effect in the store:** switch to the store tab and reload it. It answers "OrbitCrate is temporarily unavailable" with HTTP 503. Say: "This is not a banner we switched on. The application itself refuses every request, and that is what Prometheus is about to notice." (With the `latency` or `errors` fault instead, the store stays up and its "Store pulse" bars turn amber or red.)
 
 ### Step 4 - Observe monitoring signal
 
@@ -265,6 +288,20 @@ The assistant allows a limited number of messages per user per minute (shown on 
 
 ---
 
+## DEMO 4 (optional) - A remediation that fails
+
+Show this only if time allows, or when the examiner asks what happens when a fix does not work. It needs the terminal.
+
+1. **Terminal:** `docker compose stop test-app`. Say: "This time nothing is simulated. The application's container is really stopped."
+2. **Operator:** wait for the incident on "Incidents". It carries no "Simulated fault" badge. Open it and press "Request remediation" (ACTION-001) with a justification.
+3. **Administrator:** open the request, "Approve", then "Execute".
+4. **Both:** after about 20 seconds the request shows "Failed" with the reason "The recovery endpoint could not be reached after 3 attempts." Say: "ACTION-001 calls a recovery endpoint inside the application. The application is not running, so the call cannot arrive. The platform has no access to the Docker daemon by design, so it cannot start the container, and it does not pretend that it did. The incident stays open, the failure is on its timeline and in the audit trail, and resolving it by hand is refused while the alert is firing."
+5. **Terminal:** `docker compose start test-app`. **Administrator:** press "Retry" on the request. It is executed, verified and shown as "Succeeded"; the request page keeps both attempts.
+
+The same sequence runs unattended with `python scripts/run_failed_remediation_demo.py`; its recorded result is in [`../evidence/failed-remediation.json`](../evidence/failed-remediation.json).
+
+---
+
 ## Fallback plan
 
 | Problem | What to check | What to do |
@@ -279,7 +316,8 @@ The assistant allows a limited number of messages per user per minute (shown on 
 | VigilAI answers "You are sending messages too quickly" | Per-user rate limit | Wait for the stated number of seconds. |
 | Sign-in answers "Too many sign-in attempts" | Failed attempts were rate limited | Wait for the stated time; use the correct password from `.env`. |
 | A page shows old data | Polling pauses while a tab is hidden | Press "Refresh" on the page. |
-| The live demonstration cannot continue | - | Run the non-interactive demonstrations (below) in the terminal, or present the recorded evidence in [`../verification-report.md`](../verification-report.md). |
+| The store tab shows "cannot be reached" or an error page | Is `test-app` running (`docker compose ps test-app`)? Is an outage fault active? | Start the container, or clear the fault; reload the tab. |
+| The live demonstration cannot continue | - | Play the recorded walkthrough `recordings/vigilops-demo.webm` (preparation item 11), run the non-interactive demonstrations (below) in the terminal, or present the recorded evidence in [`../verification-report.md`](../verification-report.md). |
 
 ## Resetting between runs
 
@@ -301,6 +339,7 @@ python scripts/run_e2e_demos.py --only outage     # DEMO 1 only (includes the li
 python scripts/run_e2e_demos.py --only assistant  # DEMO 3 only
 python scripts/run_e2e_demos.py --skip-repeat     # do not wait for Alertmanager's repeated notification
 python scripts/run_e2e_demos.py --no-save         # do not write the evidence file
+python scripts/run_failed_remediation_demo.py     # DEMO 4: stops the application container, expects FAILED, retries
 ```
 
 - It needs the stack running with demo controls enabled and reads the bootstrap accounts from `.env`; it uses only the Python standard library and does not print the credentials.
