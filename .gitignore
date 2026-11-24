@@ -57,6 +57,8 @@ prometheus_data/
 test-results/
 playwright-report/
 frontend/coverage/
+# Demonstration videos made by tests/e2e/record-demo.js
+recordings/
 
 # Database backups (contain password hashes)
 backups/
