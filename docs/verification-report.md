@@ -1,6 +1,6 @@
 # Verification Report
 
-**Date:** 2026-11-23 **Build:** branch `main` of `github.com/Gangadhar017/VigilOps` (upgraded from CloudShield `a433fc7`)
+**Date:** 2026-11-23, with section 10 added on 2026-11-25 **Build:** branch `main` of `github.com/Gangadhar017/VigilOps` (upgraded from CloudShield `a433fc7`)
 **Environment:** Windows 11 Home, Docker Desktop 29.5.3 (WSL2), 8 CPUs / 7.6 GiB for Docker
 
 This report records what was actually run and what happened. Anything that was not run is marked
@@ -11,15 +11,17 @@ This report records what was actually run and what happened. Anything that was n
 
 | Suite | Command | Result |
 |---|---|---|
-| Backend tests, SQLite | `cd backend && pytest` | **254 passed**, 5 skipped (4 need PostgreSQL, 1 needs symlink rights on Windows) |
+| Backend tests, SQLite | `cd backend && pytest` | **280 passed**, 5 skipped (4 need PostgreSQL, 1 needs symlink rights on Windows); 254 passed before the tests of section 10 were added |
 | Backend tests, PostgreSQL 16 | `TEST_DATABASE_URL=postgresql://… pytest` | **249 passed**, 1 skipped (symlink test on Windows), run locally before the nine hosted-profile tests of section 8 were added; with them the suite passes in the PostgreSQL job of CI run 45181978988 |
 | Backend lint | `ruff check app tests alembic` | clean |
-| Frontend tests | `cd frontend && npm test` | **24 passed** |
+| Demonstration application tests | `python -m pytest test-app/tests -q` | **26 passed** (section 10) |
+| Frontend tests | `cd frontend && npm test` | **32 passed** (24 before section 10) |
 | Frontend production build | `npm run build` | succeeded |
-| Stack health and exposure | `sh scripts/verify_stack.sh` | **20 of 20** checks passed |
+| Stack health and exposure | `sh scripts/verify_stack.sh` | **25 of 25** checks passed (20 of 20 before the five checks of section 10 were added) |
 | End-to-end demonstrations 1–3 (API level, fresh installation) | `python scripts/run_e2e_demos.py` | **55 of 55** checks passed; 0 error-level log lines in backend and worker |
-| Alert rules for errors, latency, CPU, memory | `python scripts/verify_alert_rules.py` | **4 of 4** fired and auto-resolved |
-| Browser end-to-end tests (Chromium) | `cd tests/e2e && npx playwright test` | **9 passed** |
+| Demonstration 4: a remediation that fails, and its retry | `python scripts/run_failed_remediation_demo.py` | **24 of 24** checks passed (section 10) |
+| Alert rules for errors, latency, CPU, memory | `python scripts/verify_alert_rules.py` | **4 of 4** fired and auto-resolved (repeated in section 10) |
+| Browser end-to-end tests (Chromium) | `cd tests/e2e && npx playwright test` | **16 passed** (9 before section 10) |
 | VigilAI against the real Gemini API | `python scripts/verify_gemini_live.py` | **19 of 19** checks passed; 9 of 9 platform questions answered by `gemini-3.5-flash-lite` |
 | Browser end-to-end tests with VigilAI in live AI mode | `cd tests/e2e && npx playwright test` | **9 passed** |
 | Scanner on fixtures | `python scripts/evaluate_scanner.py` | 17 of 17 detected, 0 false positives |
@@ -225,10 +227,17 @@ documentation. The status of the actual deployment is recorded below.
 
 ### Status of the deployment on Render and Vercel
 
-As of 2026-11-23 the Render Blueprint and the Vercel project had not been created: both have to be
-created from the owner's accounts, and the bootstrap passwords and the Gemini key have to be typed there
-by the owner. Until this paragraph is replaced by a record of the live deployment, treat the hosted
-deployment itself as UNVERIFIED; what is verified is the image and its configuration, as listed above.
+The owner created the Render service and the Vercel project on 2026-11-24. What was checked from outside
+on 2026-11-25: `GET https://vigilops.onrender.com/api/health` answered `{"status":"healthy"}` (after 24 s,
+because the free service had been asleep), the same path through the project's Vercel address answered
+`{"status":"healthy"}` in under a second once the service was awake, and the Vercel address served the
+application (HTTP 200). That confirms that the service starts on Render with its database, and that
+Vercel forwards `/api/*` to it.
+
+Still UNVERIFIED on the live deployment: the demonstrations (they were not run against it), the per-user
+separation inside the container (the first lines of the Render log say which case applies), Render's
+real CPU share and wake-up time beyond the one observation above, and the `/orbitcrate/` route, which
+that deployment receives only with the build described in section 10.
 
 ## 9. Interface redesign
 
@@ -251,3 +260,75 @@ retried once, then answered from the documentation with the "could not be reache
 the question. The browser test waited only 15 s for the answer and failed; its wait is now 50 s, within
 the 60 s the chat request allows. A client-side timeout (no answer within `AI_TIMEOUT_SECONDS`) and a
 quota error (HTTP 429) remain unobserved.
+
+## 10. Product page, the OrbitCrate storefront and the failed-remediation run
+
+On 2026-11-25 (local time; the evidence files of that night carry UTC timestamps of 2026-11-24) three
+things were added and verified on the Windows host of section 1:
+
+* the monitored demonstration application became **OrbitCrate**, a storefront with a catalogue, a price
+  calculation and per-visitor orders, reachable at `/orbitcrate/`; its metrics, fault modes and recovery
+  endpoint are unchanged in kind;
+* a public **product page** at the site root for visitors who are not signed in (`/welcome` for everyone);
+* a fourth demonstration, **a remediation that fails and is retried**, and a script that records the
+  walkthrough as a video.
+
+| Check | Command | Result |
+|---|---|---|
+| Backend tests, SQLite | `cd backend && pytest` | **280 passed**, 5 skipped (the 26 new tests cover the storefront pass-through of `SERVE_DEMO_APP`) |
+| Demonstration application tests | `python -m pytest test-app/tests -q` | **26 passed** (pages, prices, orders and their limits, metric labels, control tokens, the fault modes, recovery) |
+| Backend and demonstration application lint | `ruff check app tests`, `ruff check --config ruff.toml ../test-app` | clean |
+| Frontend tests | `cd frontend && npm test` | **32 passed** (8 new tests of the product page) |
+| Frontend production build | `npm run build` | succeeded |
+| Stack health and exposure | `sh scripts/verify_stack.sh` | **25 of 25** (five new checks on `/orbitcrate/`) |
+| Browser end-to-end tests (Chromium) | `cd tests/e2e && npx playwright test` | **16 passed**: the 9 earlier tests and 7 new ones (product page, section tabs, a signed-in user at the site root, an order placed in the store and followed to "Active", the public and the withheld paths of the store, the link from the console, phone-sized layout of both public pages) |
+| Demonstrations 1 to 3, run D | `python scripts/run_e2e_demos.py` | **54 of 54**, in live AI mode; the 55th check of the earlier run applies only when no Gemini key is configured. Stored as `evidence/e2e-results-run-d.json` |
+| The four other alert rules against the new application | `python scripts/verify_alert_rules.py` | **4 of 4** fired and were resolved automatically (values in [`evaluation.md`](evaluation.md) section 2.2) |
+| Demonstration 4: failed remediation and retry | `python scripts/run_failed_remediation_demo.py` | **24 of 24**; stored as `evidence/failed-remediation.json`, described in [`evaluation.md`](evaluation.md) section 2.9 |
+| Recording of the walkthrough | `cd tests/e2e && node record-demo.js` | completed: one video of 3 min 20 s (28 MB, WebM) showing the product page, an order in the store, the outage, the store answering HTTP 503, the incident, the request, the approval, the verified recovery, a finding, VigilAI and the audit trail. Frames of the file were inspected. The video is kept outside the repository (`recordings/` is ignored by git) |
+
+What the reverse proxy routes under `/orbitcrate/` was probed from outside (`curl --path-as-is`):
+
+| Request | Result |
+|---|---|
+| `/orbitcrate` | HTTP 308 to `/orbitcrate/` |
+| `/orbitcrate/`, `/orbitcrate/static/app.js`, `/orbitcrate/static/styles.css`, the font, `/orbitcrate/api/catalog`, `/orbitcrate/api/status` | HTTP 200 |
+| `/orbitcrate/internal/state`, `/orbitcrate/metrics`, `/orbitcrate/health`, `/orbitcrate/health/live`, `/orbitcrate/docs`, `/orbitcrate/static/../internal/state`, `/orbitcrate/api/%2e%2e/metrics` | HTTP 404 each |
+| `POST /orbitcrate/internal/recover` | HTTP 404 |
+| `POST /orbitcrate/api/estimate` with a 6000-byte body | HTTP 413 |
+
+The single-container image of section 8 was built again and started with the same limits
+(`--memory=512m --memory-swap=512m --cpus=0.1`, next to a PostgreSQL 16 container, settings of
+`render.yaml`, Gemini key configured), while the Compose stack kept running on the same machine:
+
+| Check | Result |
+|---|---|
+| All five components start, each as its own user | yes; all components running 37 s after the container started; no launcher warning, no restart |
+| `/orbitcrate` and `/orbitcrate/` through the API port (`SERVE_DEMO_APP=true` from the image) | the page, with the `<base href="/orbitcrate/">` element the pass-through adds; static files, the font and the store API: HTTP 200 |
+| `/orbitcrate/internal/state`, `/orbitcrate/metrics`, `/orbitcrate/health/ready`, `/orbitcrate/static/../internal/state`, `POST /orbitcrate/internal/recover` | HTTP 404 each |
+| The store used in a browser through that port, opened without the trailing slash | the address became `/orbitcrate/`, "Store operational", a price was calculated, an order was placed and reached "Active"; no browser error |
+| The three demonstrations (`run_e2e_demos.py --base-url http://127.0.0.1:10000`) | **54 of 54** checks passed. One of them (Alertmanager's failed-delivery counter) read the Prometheus of the Compose stack, which was reachable on this machine, so it says nothing about the container; the other 53 do |
+| Timings in that run | outage to scrape target down 6.1 s; outage to incident 36.3 s; repeated notification after 131 s; ACTION-001 10.4 s; ACTION-002 4.0 s |
+| Memory | 212 MiB after start, 281 MiB after the demonstrations; limit 512 MiB; not killed for memory |
+| Error-level log lines | 0 |
+
+Two defects were found by these checks and fixed before the runs above:
+
+| Defect | Found by | Fix |
+|---|---|---|
+| The price summary could differ from the sum of its own lines by one paisa, because the total was calculated from unrounded amounts | a unit test that added the lines up by hand | each amount is rounded where it is shown, and the total is the sum of the rounded amounts |
+| Requests for the store's static files were counted together with unknown addresses under the metric label "other", and the font was served as `application/octet-stream` on Windows | reading `/metrics` and the response headers after the first requests | a fixed `/static` label; the `font/woff2` type is registered explicitly |
+
+Not verified in this section:
+
+* **Vercel's forwarding of `/orbitcrate/*`.** The two rewrites added to `frontend/vercel.json` were not
+  exercised on Vercel. They take effect with the next deployment; until the store has been opened once
+  through the Vercel address, treat that route as UNVERIFIED. The pass-through behind it (the API port)
+  is verified above.
+* **The PostgreSQL run of the backend suite** was not repeated locally; it runs in the PostgreSQL job of
+  the CI workflow.
+* **The CI workflow in its present form** (with the demonstration application's tests, the storefront
+  checks on the single-container image and the failed-remediation step) has not run yet: it runs at the
+  next push.
+* **The video on another machine.** The recording was made and inspected on this host only. WebM plays in
+  Chromium-based browsers and in VLC; it was not converted to MP4.
