@@ -1,9 +1,14 @@
 # Evaluation
 
-Every number in this document was measured on a running VigilOps stack on 2026-11-23. Nothing is
-estimated. The raw records are in [`evidence/e2e-results.json`](evidence/e2e-results.json) and
-[`evidence/alert-rules.json`](evidence/alert-rules.json); the scripts that produced them are in
-[`../scripts`](../scripts) and can be re-run by anyone (see "How to reproduce").
+Every number in this document was measured on a running VigilOps stack. Runs A to C and the scanner
+and VigilAI figures were measured on 2026-11-23. Run D, the alert-rule table in section 2.2 and
+section 2.9 were measured on 2026-11-24 (UTC), after the demonstration application had become the
+OrbitCrate storefront. Nothing is estimated. The raw records are in
+[`evidence/e2e-results.json`](evidence/e2e-results.json) (run C),
+[`evidence/e2e-results-run-d.json`](evidence/e2e-results-run-d.json) (run D),
+[`evidence/alert-rules.json`](evidence/alert-rules.json) and
+[`evidence/failed-remediation.json`](evidence/failed-remediation.json); the scripts that produced them
+are in [`../scripts`](../scripts) and can be re-run by anyone (see "How to reproduce").
 
 The sample sizes are small (two or three runs per measurement). The figures show that the mechanisms
 work and what order of magnitude to expect on this machine; they are not a statistical benchmark.
@@ -19,7 +24,7 @@ work and what order of magnitude to expect on this machine; they are not a stati
 | Workload | The demo application's built-in synthetic load generator: one real HTTP request every 0.5 s to its own endpoints (about 2 requests/s, roughly 4% of them a deliberate 404) |
 | Driver | `scripts/run_e2e_demos.py` and `scripts/verify_alert_rules.py`, calling the public entry point `http://localhost:8080` exactly as the browser does, with the bootstrap Administrator and Operator accounts |
 | Clock | Wall-clock time of the driving script; polling interval 1–3 s, so each figure includes up to one polling interval |
-| VigilAI mode | Runs A to C: documentation mode (no API key). Live AI generation was evaluated separately afterwards with a real key and the model `gemini-3.5-flash-lite` (section 2.6) |
+| VigilAI mode | Runs A to C: documentation mode (no API key). Live AI generation was evaluated separately afterwards with a real key and the model `gemini-3.5-flash-lite` (section 2.6). Run D: live AI mode |
 
 Runs:
 
@@ -28,7 +33,12 @@ Runs:
   correctly; the HTTP response to Alertmanager was wrong), so its repeated-notification figure is not used.
 * **Run B** – Demo 1 after that defect was fixed.
 * **Run C** – all three demos on a completely fresh installation (`docker compose down -v`, rebuild) of
-  the final code. This is the run stored in `evidence/e2e-results.json`.
+  the final code at that date. This is the run stored in `evidence/e2e-results.json`.
+* **Run D** – all three demos on 2026-11-24 (UTC) against the stack with the OrbitCrate storefront as the
+  monitored application, on an installation that already held records, with a Gemini key configured.
+  54 of 54 checks passed; the one check of run C that is missing here ("Missing Gemini configuration ->
+  documentation fallback works") is made only when no key is configured. Stored in
+  `evidence/e2e-results-run-d.json`.
 
 ## 2. Results
 
@@ -41,6 +51,7 @@ Time from the Administrator injecting the outage to the incident being visible t
 | A | 6.5 s | 30.2 s |
 | B | 3.2 s | 27.9 s |
 | C | 5.4 s | 37.5 s |
+| D | 5.2 s | 33.8 s |
 
 The delay is the sum of the scrape interval (up to 5 s), the rule's `for: 15s`, the evaluation interval
 (up to 5 s), Alertmanager's `group_wait` (5 s) and the script's polling. It is dominated by
@@ -50,14 +61,20 @@ more sensitivity to brief glitches.
 ### 2.2 The other alert rules
 
 Each fault mode was injected once; the alert had to open an incident and, after the fault was cleared,
-the incident had to be resolved automatically by the monitoring signal.
+the incident had to be resolved automatically by the monitoring signal. The table is the run of
+2026-11-24 (UTC) against the OrbitCrate storefront, stored in `evidence/alert-rules.json`.
 
 | Fault | Alert rule | Value observed by Prometheus when the incident opened | Fault → incident | Fault cleared → incident resolved |
 |---|---|---|---|---|
-| errors | HighHttp5xxErrorRate (> 20% for 30 s) | 5xx ratio 67.8% | 65.3 s | 59.9 s |
-| latency | HighApiLatency (p95 > 1 s for 30 s) | p95 1.92 s | 57.2 s | 60.1 s |
-| cpu | HighCpuUsage (> 0.8 core for 30 s) | 0.94 core | 93.9 s | 29.6 s |
-| memory | HighMemoryUsage (> 250 MiB for 30 s) | 286,355,456 bytes (273 MiB) | 49.4 s | 14.4 s |
+| errors | HighHttp5xxErrorRate (> 20% for 30 s) | 5xx ratio 86.0% | 61.0 s | 59.7 s |
+| latency | HighApiLatency (p95 > 1 s for 30 s) | p95 1.94 s | 57.0 s | 59.8 s |
+| cpu | HighCpuUsage (> 0.8 core for 30 s) | 0.97 core | 97.6 s | 24.4 s |
+| memory | HighMemoryUsage (> 250 MiB for 30 s) | 287,219,712 bytes (274 MiB) | 49.0 s | 29.5 s |
+
+The same four checks had passed on 2026-11-23 against the earlier demonstration application (5xx ratio
+67.8%, p95 1.92 s, 0.94 core, 286,355,456 bytes; 65.3 s, 57.2 s, 93.9 s and 49.4 s to the incident).
+The higher 5xx ratio now follows from the request mix: with the `errors` fault nine of ten requests to
+the store's API fail, and a larger share of the synthetic load goes to that API.
 
 These rules use one-minute rate windows and `for: 30s`, which is why they take longer to fire and to
 clear than the outage rule. The CPU and memory values are measured from the process's own counters, not
@@ -100,15 +117,18 @@ configurations outside the `vigilops/v1` schema, which the scanner rejects, and 
 |---|---|---|---|
 | ACTION-002 correct public storage | A | 2.1 s | SUCCEEDED, 3 of 3 verification checks passed |
 | ACTION-002 correct public storage | C | 4.4 s | SUCCEEDED, 3 of 3 verification checks passed |
+| ACTION-002 correct public storage | D | 4.1 s | SUCCEEDED, 3 of 3 verification checks passed |
 | ACTION-001 recover application | A | 12.2 s | SUCCEEDED, 3 of 3 verification checks passed |
 | ACTION-001 recover application | B | 12.2 s | SUCCEEDED, 3 of 3 verification checks passed |
 | ACTION-001 recover application | C | 20.4 s | SUCCEEDED, 3 of 3 verification checks passed |
+| ACTION-001 recover application | D | 20.4 s | SUCCEEDED, 3 of 3 verification checks passed |
 
 ACTION-001's time is almost entirely verification: three consecutive readiness checks one second apart,
 a Prometheus scrape newer than the action, and the original alert no longer firing.
 
 **Application recovery time** (worker starts the execution → recovery call completed): 0.08 s (A),
-0.05 s (B), 0.31 s (C). This is the time to restore service; confirming it took the remaining seconds.
+0.05 s (B), 0.31 s (C), 0.05 s (D). This is the time to restore service; confirming it took the
+remaining seconds.
 
 **Verification correctness.** Success is only half of the question. The automated tests show that a
 remediation is *not* reported as successful when it did not work:
@@ -121,9 +141,11 @@ remediation is *not* reported as successful when it did not work:
 | Configuration already compliant | SUCCEEDED with "no change" (idempotent), file not rewritten |
 | Queued request without a recorded approval | refused by the worker, nothing executed |
 
-Across all runs of the demos (script and browser tests) 3 ACTION-001 and 5 ACTION-002 executions were
+Across the runs of 2026-11-23 (script and browser tests) 3 ACTION-001 and 5 ACTION-002 executions were
 dispatched against the live stack; all 8 completed with passed verification and none was marked
-successful without it.
+successful without it. On the installation used on 2026-11-24 the database held 11 remediation requests
+after all runs of that day (5 ACTION-001, 6 ACTION-002), every one of them finally SUCCEEDED, and 12
+executions: 11 succeeded and one failed. The failed one is the deliberate first attempt of section 2.9.
 
 ### 2.6 VigilAI
 
@@ -183,6 +205,28 @@ only with a stubbed SDK client.
 | `docker compose down` (containers removed, volumes kept) then `up -d` | users, incidents, scans, findings, remediation requests and audit events identical before and after |
 | `scripts/backup_db.sh`, then two more scans, then `scripts/restore_db.sh` | scan count back from 11 to 9, audit count back to the backup value; append-only trigger still present |
 
+### 2.9 A remediation that fails
+
+`scripts/run_failed_remediation_demo.py` was run once on 2026-11-24 (UTC) against the Compose stack; the
+record is `evidence/failed-remediation.json`. The demonstration application's container was stopped with
+`docker compose stop test-app`, which is a real outage and not an injected fault, so that the endpoint
+ACTION-001 calls could not be reached. All 24 checks passed.
+
+| Observation | Result |
+|---|---|
+| Container stop → incident visible | 36.3 s; the incident was not labelled as simulated |
+| Dispatch → request reported FAILED | 22.6 s; three recovery calls, each ended with a connection error |
+| Failure reason shown | "The recovery endpoint could not be reached after 3 attempts." |
+| Attempts used | 1 of 3; a retry stayed possible |
+| Incident after the failed run | still OPEN; `REMEDIATION_FAILED` on its timeline; resolving it by hand was refused (HTTP 409) while the alert was firing |
+| Audit trail | `REMEDIATION_FAILED` with outcome FAILURE; no `REMEDIATION_SUCCEEDED` for that attempt |
+| Container started again → target UP | 5.3 s |
+| Retry → verified result | 12.4 s; SUCCEEDED; both attempts (FAILED, then SUCCEEDED) kept on the request |
+| Incident at the end | RESOLVED by the verified retry, then closed by the Administrator |
+
+This is one run. It shows that the failure path works as designed on a live stack; it is not a
+measurement of how often a remediation fails.
+
 ## 3. Limitations of this evaluation
 
 * One machine, one operating system, two or three runs per figure.
@@ -200,6 +244,7 @@ only with a stubbed SDK client.
 docker compose up --build -d
 python scripts/run_e2e_demos.py          # demos 1-3, writes docs/evidence/e2e-results.json  (about 7 minutes)
 python scripts/verify_alert_rules.py     # the four other alert rules, writes docs/evidence/alert-rules.json (about 8 minutes)
+python scripts/run_failed_remediation_demo.py   # section 2.9, writes docs/evidence/failed-remediation.json (about 2 minutes, needs the Docker CLI)
 cd backend && python ../scripts/evaluate_scanner.py
 python scripts/verify_gemini_live.py     # needs GEMINI_API_KEY in .env; about a dozen requests, about 2 minutes
 ```
