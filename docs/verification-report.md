@@ -30,6 +30,7 @@ This report records what was actually run and what happened. Anything that was n
 | Compose files | `docker compose config` (local and production overlay) | valid |
 | GitHub Actions workflow on a GitHub-hosted Ubuntu runner (run 45170977487, commit `fc5bb92`, push to `main`) | `.github/workflows/ci.yml` | **5 of 5 jobs succeeded**: backend lint and tests on SQLite, the same on PostgreSQL 16, frontend tests and build, configuration validation, and the full stack (built in 48 s, `verify_stack.sh`, then the three demonstrations in 237 s) |
 
+| GitHub Actions run 45500976027 (commit `b27112f`), the workflow with the steps of section 10 | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded** (section 10) |
 | GitHub Actions run 45181978988 (commit `498988d`), with the added job for the single-container image | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded**, among them "Single-container image under free-tier limits": the image of section 8 built on the Ubuntu runner, started with 512 MB and 0.1 CPU, and passed the exposure checks and the three demonstrations (5 min 41 s for the job) |
 
 All rows except the two CI rows were run on the Windows 11 host described above. The CI runs had no
@@ -235,9 +236,10 @@ application (HTTP 200). That confirms that the service starts on Render with its
 Vercel forwards `/api/*` to it.
 
 Still UNVERIFIED on the live deployment: the demonstrations (they were not run against it), the per-user
-separation inside the container (the first lines of the Render log say which case applies), Render's
-real CPU share and wake-up time beyond the one observation above, and the `/orbitcrate/` route, which
-that deployment receives only with the build described in section 10.
+separation inside the container (the first lines of the Render log say which case applies), and Render's
+real CPU share and wake-up time beyond the one observation above. The public pages of the live
+deployment, including the `/orbitcrate/` route through Vercel, were checked after the build of section
+10 had been deployed; see the end of that section.
 
 ## 9. Interface redesign
 
@@ -319,16 +321,26 @@ Two defects were found by these checks and fixed before the runs above:
 | The price summary could differ from the sum of its own lines by one paisa, because the total was calculated from unrounded amounts | a unit test that added the lines up by hand | each amount is rounded where it is shown, and the total is the sum of the rounded amounts |
 | Requests for the store's static files were counted together with unknown addresses under the metric label "other", and the font was served as `application/octet-stream` on Windows | reading `/metrics` and the response headers after the first requests | a fixed `/static` label; the `font/woff2` type is registered explicitly |
 
-Not verified in this section:
+### After the push: CI and the live deployment
 
-* **Vercel's forwarding of `/orbitcrate/*`.** The two rewrites added to `frontend/vercel.json` were not
-  exercised on Vercel. They take effect with the next deployment; until the store has been opened once
-  through the Vercel address, treat that route as UNVERIFIED. The pass-through behind it (the API port)
-  is verified above.
-* **The PostgreSQL run of the backend suite** was not repeated locally; it runs in the PostgreSQL job of
-  the CI workflow.
-* **The CI workflow in its present form** (with the demonstration application's tests, the storefront
-  checks on the single-container image and the failed-remediation step) has not run yet: it runs at the
-  next push.
+The work of this section was pushed to `main` on 2026-11-25 (commit `b27112f`).
+
+| Check | Result |
+|---|---|
+| GitHub Actions run 45500976027 (run 8, commit `b27112f`) on GitHub-hosted Ubuntu runners | **6 of 6 jobs succeeded** in 7 min 31 s: backend lint and tests on SQLite together with the demonstration application's lint and tests, the backend suite on PostgreSQL 16, frontend tests and build, configuration validation, the single-container image under 512 MB and 0.1 CPU with the storefront checks and the three demonstrations, and the full stack with `verify_stack.sh`, the three demonstrations and the failed-remediation demonstration |
+| Render, after it had rebuilt from that commit: `/api/health`, `/orbitcrate/`, `/orbitcrate/static/app.js`, `/orbitcrate/api/catalog` | HTTP 200 each |
+| Render: `/orbitcrate/internal/state`, `/orbitcrate/metrics`, `/metrics` | HTTP 404 each |
+| The project's Vercel address: `/`, `/welcome`, `/login`, `/api/health`, `/orbitcrate`, `/orbitcrate/`, the store's script and style sheet, `/orbitcrate/api/catalog` | HTTP 200 each; `/orbitcrate` and `/orbitcrate/` both return the store's page with the `<base href="/orbitcrate/">` element |
+| Vercel: `/orbitcrate/internal/state`, `/orbitcrate/metrics` | HTTP 404 each |
+| The live site in a browser (Chromium), without signing in | the product page with "Demonstration environment is ready"; a console address sends a visitor without a session to the sign-in page; the store opened as `/orbitcrate` became `/orbitcrate/`, showed "Store operational", calculated a price, and an order was placed, reached "Active" and was cancelled again; no browser error |
+
+One attempt of that browser check, made in the minute in which Render switched to the new build, did not
+get the store's plans within 60 s; the same check passed when repeated a few minutes later. Nobody
+signed in to the live deployment during these checks, and the demonstrations were not run against it.
+
+Still not verified in this section:
+
+* **Signed-in use of the live deployment** (the console pages and the demonstrations on Render), as in
+  section 8.
 * **The video on another machine.** The recording was made and inspected on this host only. WebM plays in
   Chromium-based browsers and in VLC; it was not converted to MP4.
