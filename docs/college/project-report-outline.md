@@ -13,7 +13,6 @@ B.Tech Computer Science and Engineering (Cloud Computing and Virtualization) - M
 > | Member 2 (name, roll number) | ______________________________ |
 > | Member 3 (name, roll number) | ______________________________ |
 > | Member 4 (name, roll number) | ______________________________ |
-> | Member 5 (name, roll number) | ______________________________ |
 
 ## How to use this outline
 

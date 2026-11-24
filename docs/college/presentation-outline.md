@@ -2,7 +2,7 @@
 
 B.Tech Computer Science and Engineering (Cloud Computing and Virtualization) - Major Project presentation, 15 slides.
 
-> **To be filled in by the team:** institution, department, guide name, and the name and roll number of Member 1 to Member 5 (slide 1).
+> **To be filled in by the team:** institution, department, guide name, and the name and roll number of Member 1 to Member 4 (slide 1).
 
 ## Before building the slides
 
@@ -16,11 +16,10 @@ B.Tech Computer Science and Engineering (Cloud Computing and Virtualization) - M
 
 | Member | Area of ownership | Slides |
 |---|---|---|
-| Member 1 | Frontend and user interface | 1, 2, 8 |
-| Member 2 | Backend and authentication | 5, 6, 7 |
-| Member 3 | Monitoring and incident management | 3, 4, 9 |
-| Member 4 | Security scanner and remediation | 10, 11, 14 |
-| Member 5 | VigilAI, integration, testing and documentation | 12, 13, 15 |
+| Member 1 | Frontend and user interface | 1, 2, 8, 15 |
+| Member 2 | Backend, database, access control and the assistant backend | 5, 6, 7, 12 |
+| Member 3 | Monitoring, the demonstration application, incidents and the security scanner | 3, 4, 9, 10 |
+| Member 4 | Remediation, deployment, CI/CD and verification | 11, 13, 14 |
 
 All members must be able to answer questions on every slide; see [`team-responsibilities.md`](team-responsibilities.md).
 
@@ -32,7 +31,7 @@ All members must be able to answer questions on every slide; see [`team-responsi
 
 - VigilOps: Secure Cloud Operations
 - B.Tech CSE (Cloud Computing and Virtualization) - Major Project
-- Team: Member 1 to Member 5 (names and roll numbers), guide, institution
+- Team: Member 1 to Member 4 (names and roll numbers), guide, institution
 - One line: a centralized, local-first platform for monitoring, incidents, security scanning, controlled remediation, audit and a read-only assistant
 
 **Visual:** project title with the application's sign-in screen or the Overview page as a background image.
@@ -169,7 +168,7 @@ All members must be able to answer questions on every slide; see [`team-responsi
 
 ## Slide 10 - Security Scanning
 
-**Presenter:** Member 4
+**Presenter:** Member 3
 
 - Scope: local YAML files in the `vigilops/v1` schema inside an authorised workspace - not a live cloud account
 - SEC-001 public storage, SEC-002 missing encryption, SEC-003 wildcard IAM, SEC-004 open sensitive ports, SEC-005 privileged container
@@ -201,7 +200,7 @@ All members must be able to answer questions on every slide; see [`team-responsi
 
 ## Slide 12 - VigilAI
 
-**Presenter:** Member 5
+**Presenter:** Member 2
 
 - Floating chat widget on every page; read-only; answers only questions about the platform
 - Backend decides the scope before any model call: in scope, out of scope, privileged action, secret request, prompt injection
@@ -217,7 +216,7 @@ All members must be able to answer questions on every slide; see [`team-responsi
 
 ## Slide 13 - Testing and Results
 
-**Presenter:** Member 5
+**Presenter:** Member 4
 
 - Levels: unit, API integration (SQLite and PostgreSQL), PostgreSQL-specific, frontend component, configuration validation, stack verification, end-to-end
 - Three end-to-end demonstrations run against the real stack by `scripts/run_e2e_demos.py`
@@ -248,7 +247,7 @@ All members must be able to answer questions on every slide; see [`team-responsi
 
 ## Slide 15 - Conclusion
 
-**Presenter:** Member 5
+**Presenter:** Member 1
 
 - One platform connects real detection, deduplicated incidents, deterministic findings, controlled and verified remediation, and an audit trail
 - Safety by design: allowlist, two-person approval, isolated worker, evidence-based success, server-side roles

@@ -2,7 +2,7 @@
 
 Realistic enhancements, grouped by theme. Each item states what it would add and why it is out of scope in the present build. The present limitations they respond to are listed in [`../architecture.md`](../architecture.md#known-limitations) and [`../security.md`](../security.md#residual-risks-and-limitations).
 
-> **To be filled in by the team:** institution, guide, and the names and roll numbers of Member 1 to Member 5.
+> **To be filled in by the team:** institution, guide, and the names and roll numbers of Member 1 to Member 4.
 
 ## Principles that any extension must keep
 
