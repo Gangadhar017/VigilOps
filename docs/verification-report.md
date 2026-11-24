@@ -28,10 +28,10 @@ This report records what was actually run and what happened. Anything that was n
 | Prometheus configuration | `promtool check config` | success, 5 rules |
 | Alertmanager configuration | `amtool check-config` | success, 1 receiver |
 | Compose files | `docker compose config` (local and production overlay) | valid |
-| GitHub Actions workflow on a GitHub-hosted Ubuntu runner (run 45170977487, commit `fc5bb92`, push to `main`) | `.github/workflows/ci.yml` | **5 of 5 jobs succeeded**: backend lint and tests on SQLite, the same on PostgreSQL 16, frontend tests and build, configuration validation, and the full stack (built in 48 s, `verify_stack.sh`, then the three demonstrations in 237 s) |
+| GitHub Actions workflow on a GitHub-hosted Ubuntu runner (run 45170977487, push to `main`) | `.github/workflows/ci.yml` | **5 of 5 jobs succeeded**: backend lint and tests on SQLite, the same on PostgreSQL 16, frontend tests and build, configuration validation, and the full stack (built in 48 s, `verify_stack.sh`, then the three demonstrations in 237 s) |
 
-| GitHub Actions run 45500976027 (commit `b27112f`), the workflow with the steps of section 10 | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded** (section 10) |
-| GitHub Actions run 45181978988 (commit `498988d`), with the added job for the single-container image | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded**, among them "Single-container image under free-tier limits": the image of section 8 built on the Ubuntu runner, started with 512 MB and 0.1 CPU, and passed the exposure checks and the three demonstrations (5 min 41 s for the job) |
+| GitHub Actions runs 45500976027 and 45507981384 (the second on commit `faa946d`), the workflow with the steps of section 10 | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded** in each (section 10) |
+| GitHub Actions run 45181978988, with the added job for the single-container image | `.github/workflows/ci.yml` | **6 of 6 jobs succeeded**, among them "Single-container image under free-tier limits": the image of section 8 built on the Ubuntu runner, started with 512 MB and 0.1 CPU, and passed the exposure checks and the three demonstrations (5 min 41 s for the job) |
 
 All rows except the two CI rows were run on the Windows 11 host described above. The CI runs had no
 Gemini key, so their VigilAI demonstration ran in documentation mode.
@@ -323,12 +323,13 @@ Two defects were found by these checks and fixed before the runs above:
 
 ### After the push: CI and the live deployment
 
-The work of this section was pushed to `main` on 2026-11-25 (commit `b27112f`).
+The work of this section was pushed to `main` on 2026-11-25.
 
 | Check | Result |
 |---|---|
-| GitHub Actions run 45500976027 (run 8, commit `b27112f`) on GitHub-hosted Ubuntu runners | **6 of 6 jobs succeeded** in 7 min 31 s: backend lint and tests on SQLite together with the demonstration application's lint and tests, the backend suite on PostgreSQL 16, frontend tests and build, configuration validation, the single-container image under 512 MB and 0.1 CPU with the storefront checks and the three demonstrations, and the full stack with `verify_stack.sh`, the three demonstrations and the failed-remediation demonstration |
-| Render, after it had rebuilt from that commit: `/api/health`, `/orbitcrate/`, `/orbitcrate/static/app.js`, `/orbitcrate/api/catalog` | HTTP 200 each |
+| GitHub Actions run 45500976027 (run 8) on GitHub-hosted Ubuntu runners | **6 of 6 jobs succeeded** in 7 min 31 s: backend lint and tests on SQLite together with the demonstration application's lint and tests, the backend suite on PostgreSQL 16, frontend tests and build, configuration validation, the single-container image under 512 MB and 0.1 CPU with the storefront checks and the three demonstrations, and the full stack with `verify_stack.sh`, the three demonstrations and the failed-remediation demonstration |
+| GitHub Actions run 45507981384 (run 11, commit `faa946d`): the same workflow on the final state of the branch | **6 of 6 jobs succeeded** in 7 min 23 s |
+| Render, after it had rebuilt from that push: `/api/health`, `/orbitcrate/`, `/orbitcrate/static/app.js`, `/orbitcrate/api/catalog` | HTTP 200 each |
 | Render: `/orbitcrate/internal/state`, `/orbitcrate/metrics`, `/metrics` | HTTP 404 each |
 | The project's Vercel address: `/`, `/welcome`, `/login`, `/api/health`, `/orbitcrate`, `/orbitcrate/`, the store's script and style sheet, `/orbitcrate/api/catalog` | HTTP 200 each; `/orbitcrate` and `/orbitcrate/` both return the store's page with the `<base href="/orbitcrate/">` element |
 | Vercel: `/orbitcrate/internal/state`, `/orbitcrate/metrics` | HTTP 404 each |
