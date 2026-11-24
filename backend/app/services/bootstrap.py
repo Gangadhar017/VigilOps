@@ -42,6 +42,11 @@ def _ensure_user(db: Session, email: str, password: str, role: str, full_name: s
     logger.info("bootstrap account created", extra={"email": email, "role": role})
 
 
+# Descriptions written by earlier versions of this bootstrap.  A resource that
+# still carries one of them is given the current text; any other text is kept.
+_SUPERSEDED_DESCRIPTIONS = frozenset({"Monitored demonstration web application (order service)."})
+
+
 def _ensure_resource(db: Session, name: str, resource_type: str, job: str, description: str) -> None:
     existing = (
         db.query(MonitoredResource)
@@ -49,6 +54,8 @@ def _ensure_resource(db: Session, name: str, resource_type: str, job: str, descr
         .first()
     )
     if existing is not None:
+        if existing.description in _SUPERSEDED_DESCRIPTIONS:
+            existing.description = description
         return
     db.add(
         MonitoredResource(
@@ -82,7 +89,7 @@ def run_bootstrap(db: Session) -> None:
         "demo-app",
         "application",
         settings.DEMO_APP_JOB,
-        "Monitored demonstration web application (order service).",
+        "OrbitCrate storefront, the monitored demonstration application.",
     )
     _ensure_resource(
         db,

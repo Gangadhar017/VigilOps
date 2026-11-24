@@ -561,7 +561,7 @@ Live state of Prometheus, Alertmanager, the scrape targets, the alerts known to 
       "resource_type": "application",
       "environment": "local",
       "job": "demo-app",
-      "description": "Monitored demonstration web application (order service).",
+      "description": "OrbitCrate storefront, the monitored demonstration application.",
       "status": "UP",
       "last_known_status": "UP",
       "status_checked_at": "2026-01-15T10:00:00+00:00",
