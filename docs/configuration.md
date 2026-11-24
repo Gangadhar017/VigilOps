@@ -140,10 +140,10 @@ Every field of the `Settings` class in `backend/app/core/config.py`. "Passed by 
 whether `compose.yaml` forwards the variable to a container; if it says no, the code default applies
 in the Compose stack.
 
-Four settings are not passed through by `compose.yaml` and are used by the single-container image
+Five settings are not passed through by `compose.yaml` and are used by the single-container image
 (`deploy/render/Dockerfile`) described in [deployment-render-vercel.md](deployment-render-vercel.md):
-`ALLOW_DEMO_CONTROLS_IN_PRODUCTION`, `DEMO_DISABLED_FAULTS`, `INTERNAL_ENDPOINTS_LOCAL_ONLY` and
-`RUN_MIGRATIONS_ON_START`.
+`ALLOW_DEMO_CONTROLS_IN_PRODUCTION`, `DEMO_DISABLED_FAULTS`, `INTERNAL_ENDPOINTS_LOCAL_ONLY`,
+`SERVE_DEMO_APP` and `RUN_MIGRATIONS_ON_START`.
 
 ### Identity and mode
 
@@ -168,6 +168,7 @@ Four settings are not passed through by `compose.yaml` and are used by the singl
 | `ENABLE_API_DOCS` | unset: on outside production, off in production | no | Forces `/docs` and `/openapi.json` on or off. | backend |
 | `ALERT_WEBHOOK_TOKEN` | empty; must be set, 16+ characters for the API role | yes (backend) | Shared token for the alert webhook. | backend |
 | `INTERNAL_ENDPOINTS_LOCAL_ONLY` | `false` | no | When `true`, `/metrics` and `/health/ready` answer HTTP 404 unless the caller is on the loopback interface and the request carries no `X-Forwarded-For` or `Forwarded` header. Needed when the API port itself is the public port. Used by the single-container image. | backend |
+| `SERVE_DEMO_APP` | `false` | no | When `true`, the API passes the demonstration application's storefront through under `/orbitcrate/`: the page, `static/*` and `api/*` only, never `/internal/*`, `/metrics` or `/health/*`. No credentials, cookies or query strings are forwarded, a request body may be at most 4096 bytes, and each client address is limited to 300 requests per minute. For hosts with one public port; in the Compose stack the reverse proxy routes that address to the application directly and this stays `false`. The single-container image sets it to `true`. | backend |
 
 Independently of these settings, sign-in requests are also limited to 30 per client address per
 minute (a constant in `backend/app/api/auth.py`).

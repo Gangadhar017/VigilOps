@@ -13,7 +13,7 @@ flowchart LR
     browser["Browser"]
     subgraph vercel["Vercel (free Hobby plan)"]
         spa["React application (static files)"]
-        proxy["Rewrite: /api/* is forwarded"]
+        proxy["Rewrites: /api/* and /orbitcrate/* are forwarded"]
     end
     subgraph render["Render (free plan)"]
         subgraph container["One web service, one container: 512 MB, 0.1 CPU"]
@@ -28,7 +28,8 @@ flowchart LR
     gemini["Google Gemini API"]
 
     browser --> spa
-    browser -->|"/api/*"| proxy --> api
+    browser -->|"/api/*, /orbitcrate/*"| proxy --> api
+    api -->|"storefront pass-through, 127.0.0.1"| demo
     api --> pg
     worker --> pg
     prom -->|"scrape, 127.0.0.1"| demo
@@ -48,7 +49,7 @@ the frontend runs in a single web service:
 | [`render.yaml`](../render.yaml) | Render Blueprint: the web service, the database and every setting |
 | [`deploy/render/Dockerfile`](../deploy/render/Dockerfile) | The single-container image |
 | [`deploy/render/launcher.py`](../deploy/render/launcher.py) | Starts and supervises the five processes inside it |
-| [`frontend/vercel.json`](../frontend/vercel.json) | Vercel build settings, the `/api` rewrite and the security headers |
+| [`frontend/vercel.json`](../frontend/vercel.json) | Vercel build settings, the `/api` and `/orbitcrate` rewrites and the security headers |
 
 Inside the container the components are still separated as far as one container allows:
 
@@ -59,7 +60,10 @@ Inside the container the components are still separated as far as one container 
   no secret (Alertmanager reads the webhook token from a file only its user can read);
 - the demonstration application, Prometheus and Alertmanager listen on `127.0.0.1` only. The API port is
   the only public port, and `/metrics` and `/health/ready` answer only the Prometheus process inside the
-  container (`INTERNAL_ENDPOINTS_LOCAL_ONLY=true`).
+  container (`INTERNAL_ENDPOINTS_LOCAL_ONLY=true`);
+- OrbitCrate, the demonstration application's storefront, is reachable at `/orbitcrate/` because the API
+  passes it through (`SERVE_DEMO_APP=true`, set in the image): the page, its static files and its store
+  API only. The application's control endpoints, `/metrics` and `/health/*` are never passed on.
 
 This separation needs a host that lets the container start as root and switch users. If it does not,
 the launcher runs every component as the one user it was given and writes a line starting with
@@ -118,17 +122,21 @@ region cannot be changed after creation, so edit `render.yaml` first if you want
 ### 2. Frontend on Vercel
 
 1. If the Render address is not `https://vigilops.onrender.com`, change the `destination` of the first
-   rewrite in `frontend/vercel.json` to your address and push the change.
+   three rewrites in `frontend/vercel.json` (`/api`, and the two for `/orbitcrate`) to your address and
+   push the change.
 2. In Vercel choose **Add New**, **Project**, and import the `VigilOps` repository.
 3. Set **Root Directory** to `frontend`. The other settings come from `frontend/vercel.json` (build
    command `npm run build`, output directory `dist`). No environment variables are needed.
 4. Deploy. Open the address Vercel shows and sign in with `admin@vigilops.local` and the password you chose.
 
-The browser talks only to the Vercel address; Vercel forwards `/api/*` to Render. The frontend therefore
-needs no backend address at build time and the backend needs no CORS setting.
+The browser talks only to the Vercel address; Vercel forwards `/api/*` and `/orbitcrate/*` to Render. The
+frontend therefore needs no backend address at build time and the backend needs no CORS setting.
 
 ### 3. Check
 
+- Open the address without signing in: the product page appears and says whether the demonstration
+  environment is ready (a sleeping Render service needs about a minute).
+- Open `/orbitcrate/`: the store shows its plans and "Store operational".
 - Sign in as Administrator; the Overview shows both monitored resources as UP after a few seconds.
 - Settings, tab Demo controls: `outage`, `errors` and `latency` are offered.
 - Run the two demonstrations from the [demonstration script](college/demo-script.md).
@@ -164,7 +172,7 @@ database reachable from Render can be used instead by setting `DATABASE_URL`.
 | Topic | Compose stack | This deployment |
 |---|---|---|
 | Isolation between components | One container each; read-only root file systems; no Linux capabilities; the workspace is mounted read-only into the API container | One container; separation by Unix users, file permissions and per-process environment. A flaw that gives code execution in one component is closer to the others than with separate containers |
-| Public surface | Only Caddy; it forwards `/api/*` only | The API port itself. `/metrics` and `/health/ready` are refused for outside callers by the API; `/health/live` and `/api/health` answer with a status only |
+| Public surface | Only Caddy; it forwards `/api/*` to the API and the storefront paths of `/orbitcrate/*` to the demonstration application | The API port itself. `/metrics` and `/health/ready` are refused for outside callers by the API; `/health/live` and `/api/health` answer with a status only; the storefront is passed through by the API |
 | Client address | Set by the trusted reverse proxy | Taken from a forwarding header that an outside caller can forge. Sign-in is therefore also limited per e-mail address; the address recorded in the audit trail is not reliable |
 | Demo controls | Off in production mode | On, by the explicit setting `ALLOW_DEMO_CONTROLS_IN_PRODUCTION`, because the instance exists to demonstrate. Still Administrator-only and audited |
 | Fault modes | All five | `cpu` and `memory` switched off (`DEMO_DISABLED_FAULTS`) |

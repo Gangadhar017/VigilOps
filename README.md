@@ -2,7 +2,7 @@
 
 [![VigilOps CI](https://github.com/Gangadhar017/VigilOps/actions/workflows/ci.yml/badge.svg)](https://github.com/Gangadhar017/VigilOps/actions/workflows/ci.yml)
 
-B.Tech CSE (Cloud Computing and Virtualization) major project, built by a team of five students.
+B.Tech CSE (Cloud Computing and Virtualization) major project, built by a team of four students.
 
 ## Project introduction
 
@@ -17,6 +17,9 @@ brings together:
   verified by a restricted worker (ACTION-001 and ACTION-002),
 - an append-only audit trail, and
 - VigilAI, a read-only assistant backed by Google Gemini, shown as a floating chat widget.
+
+Two pages need no account: a product page at the site root that describes the platform, and
+**OrbitCrate** at `/orbitcrate/`, the demonstration storefront whose traffic the platform monitors.
 
 The project was upgraded from an earlier prototype called CloudShield. What the prototype contained
 and why parts of it were rewritten is recorded in [docs/phase-0-audit.md](docs/phase-0-audit.md).
@@ -37,6 +40,10 @@ demonstrations had produced real records.
 | Sign-in | Security findings |
 |---|---|
 | ![Sign-in page](docs/screenshots/dark-login.png) | ![Security findings page](docs/screenshots/dark-findings.png) |
+
+| Product page (public) | OrbitCrate, the monitored demonstration application (public) |
+|---|---|
+| ![Product page](docs/screenshots/dark-landing.png) | ![OrbitCrate storefront](docs/screenshots/orbitcrate.png) |
 
 ## Problem statement
 
@@ -80,6 +87,8 @@ after independent verification, and is recorded in an audit trail.
 | Audit Logs | Searchable, filterable event history with actor, outcome and correlation ID. No API edits or deletes audit events; in PostgreSQL a trigger rejects UPDATE and DELETE. |
 | VigilAI | Floating chat widget. Backend scope check, knowledge-base retrieval, role-checked read-only live data, optional Gemini generation, output validation. Without an API key it runs in documentation mode. |
 | Settings | Profile and password change, user management, three runtime settings, permission matrix, demonstration controls (fault injection, sample configuration reset). |
+| Product page | Public page at `/` for visitors who are not signed in (and at `/welcome` for everyone): capabilities, the workflow, the architecture, the two roles, the demonstration application and links to the documentation. It offers sign-in only; accounts are created by an Administrator. |
+| OrbitCrate | The monitored demonstration application, public at `/orbitcrate/`: a storefront of a fictional cloud-hosting provider with server plans, a price calculator and orders that move from received to active. Orders are not real. Every request is, and is counted and timed for Prometheus. Its "store pulse" panel shows the response time of each request the page makes, so an injected fault is visible in the store itself. |
 
 ## Architecture
 
@@ -90,6 +99,7 @@ service is meant to be reached by users.
 flowchart LR
     U["Browser"] -->|"http://localhost:8080"| W["web: Caddy + React build"]
     W -->|"/api/*"| B["backend: FastAPI"]
+    W -->|"/orbitcrate/*"| T
     B --> DB[("postgres")]
     B -->|"queries"| P["prometheus"]
     P -->|"scrape /metrics"| T["test-app: demo application"]
@@ -355,6 +365,40 @@ signed in in one tab and the Administrator in another.
    platform data. Without one, every answered question carries a notice that live AI generation is
    not configured, and the answer is assembled from the same documentation and data directly.
 
+While the outage of Demo 1 is active, open `/orbitcrate/` in another tab: the store answers
+"temporarily unavailable" (HTTP 503) until the remediation has run. With the `latency` or `errors`
+fault the store stays up and its store pulse panel turns amber or red.
+
+### Demo 4: a remediation that fails
+
+Remediation is allowed to fail, and the platform must say so. `scripts/run_failed_remediation_demo.py`
+stops the demonstration application's container (a real outage, not an injected fault), lets the
+Operator request ACTION-001 and the Administrator approve and dispatch it, and checks that the worker
+reports the run as FAILED because the recovery endpoint cannot be reached: the incident stays open,
+the failure is on its timeline and in the audit trail, and resolving by hand is refused. It then
+starts the container again and retries the request, which this time is executed and verified.
+
+```bash
+python scripts/run_failed_remediation_demo.py      # needs the Docker CLI; about two minutes
+```
+
+The recorded outcome is in `docs/evidence/failed-remediation.json`. To show it by hand: run
+`docker compose stop test-app`, follow steps 4 to 6 of Demo 1 (the incident carries no "Simulated
+fault" badge), see the request end as FAILED, run `docker compose start test-app` and choose
+**Retry** on the request.
+
+### Recorded fallback
+
+`tests/e2e/record-demo.js` walks through the product page, OrbitCrate, a controlled outage, the
+incident, the remediation request, its approval and verified execution, a security finding, VigilAI
+and the audit trail in one browser tab, with captions, and records it as a video against the running
+stack:
+
+```bash
+cd tests/e2e
+node record-demo.js                                # writes recordings/vigilops-demo.webm (not committed)
+```
+
 ### Script alternative
 
 ```bash
@@ -377,9 +421,11 @@ configuration to be the only file that has ever been scanned.
 | Backend unit and integration tests | `cd backend`, `pip install -r requirements-dev.txt`, `pytest` |
 | Same tests on PostgreSQL | set `TEST_DATABASE_URL` to a PostgreSQL URL of a disposable database, then `pytest` |
 | Backend lint | `cd backend`, `ruff check app tests` |
+| Demonstration application tests | `python -m pytest test-app/tests -q` (same Python environment as the backend) |
 | Frontend tests | `cd frontend`, `npm install`, `npm test` |
 | Stack health check | `sh scripts/verify_stack.sh` (stack running) |
 | End-to-end demonstrations | `python scripts/run_e2e_demos.py` (stack running) |
+| Failed remediation and retry | `python scripts/run_failed_remediation_demo.py` (stack running, Docker CLI) |
 | The four other alert rules | `python scripts/verify_alert_rules.py` (stack running) |
 | VigilAI against the real Gemini API | `python scripts/verify_gemini_live.py` (stack running, `GEMINI_API_KEY` set; sends about a dozen requests) |
 | Browser end-to-end tests | `cd tests/e2e`, `npm install`, `npx playwright install chromium`, `npx playwright test` (stack running) |
@@ -387,8 +433,9 @@ configuration to be the only file that has ever been scanned.
 The backend suite uses a temporary SQLite database by default and needs no running services. The
 suite drops and recreates all tables before every test, so `TEST_DATABASE_URL` must never point at a
 database that holds data you want to keep. The CI workflow in `.github/workflows/ci.yml` runs lint,
-the backend suite on SQLite and PostgreSQL, the frontend tests and build, configuration validation,
-and the stack check plus the demonstration script.
+the backend suite on SQLite and PostgreSQL, the demonstration application's tests, the frontend tests
+and build, configuration validation, the single-container image under free-tier limits, and the stack
+check plus the demonstration scripts (including the failed remediation).
 
 Results are not quoted here. Recorded outcomes and measurements are in
 [docs/verification-report.md](docs/verification-report.md) and [docs/evaluation.md](docs/evaluation.md).
@@ -418,8 +465,9 @@ Full list with causes and fixes: [docs/troubleshooting.md](docs/troubleshooting.
 - Rate limiters (login, VigilAI) are kept in the memory of the single backend process. They reset on
   restart and would not be shared between several backend processes.
 - The browser keeps the access token in `sessionStorage`.
-- The demo application's traffic comes from a built-in synthetic load generator. The measurements
-  are real; the workload is synthetic.
+- The demo application's traffic comes mostly from a built-in synthetic load generator, plus whoever
+  is using the store. The measurements are real; the workload is largely synthetic. The store keeps
+  its orders in memory only, per browser, and forgets them when its container restarts.
 - Only the demo application and the backend are registered as monitored resources; there is no
   interface for registering more.
 - Live Gemini generation was verified with one model and a small question set; answer quality was
@@ -452,6 +500,7 @@ Full list with causes and fixes: [docs/troubleshooting.md](docs/troubleshooting.
 | [docs/evaluation.md](docs/evaluation.md) | Evaluation and measurements |
 | [docs/phase-0-audit.md](docs/phase-0-audit.md) | Audit of the CloudShield prototype and gap analysis |
 | [docs/diagrams/](docs/diagrams/README.md) | Mermaid diagrams: [context](docs/diagrams/context.md), [system architecture](docs/diagrams/system-architecture.md), [deployment](docs/diagrams/deployment.md), [data flow](docs/diagrams/data-flow.md), [entity-relationship](docs/diagrams/er-diagram.md), [use cases](docs/diagrams/use-case.md), [incident lifecycle](docs/diagrams/incident-lifecycle.md), [remediation sequence](docs/diagrams/remediation-sequence.md), [security scanning flow](docs/diagrams/security-scanning-flow.md), [VigilAI architecture](docs/diagrams/vigilai-architecture.md) |
-| docs/college/ | College submission material: [project report outline](docs/college/project-report-outline.md), [presentation outline](docs/college/presentation-outline.md), [demonstration script](docs/college/demo-script.md) |
+| docs/college/ | College submission material: [project report](docs/college/project-report.md) and its [outline](docs/college/project-report-outline.md), [synopsis traceability](docs/college/synopsis-traceability.md), [presentation outline](docs/college/presentation-outline.md), [demonstration script](docs/college/demo-script.md) |
 
-`docs/evidence/e2e-results.json` is written by `scripts/run_e2e_demos.py` on a full run.
+`docs/evidence/e2e-results.json` is written by `scripts/run_e2e_demos.py` on a full run, and
+`docs/evidence/failed-remediation.json` by `scripts/run_failed_remediation_demo.py`.

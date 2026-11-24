@@ -9,21 +9,39 @@ Related documents: [setup](setup.md), [configuration](configuration.md),
 
 ## Contents
 
-1. [Signing in and the layout](#signing-in-and-the-layout)
-2. [Roles at a glance](#roles-at-a-glance)
-3. [Overview](#overview)
-4. [Monitoring](#monitoring)
-5. [Incidents](#incidents)
-6. [Security Findings](#security-findings)
-7. [Remediation](#remediation)
-8. [Audit Logs](#audit-logs)
-9. [VigilAI / Help](#vigilai--help)
-10. [Settings](#settings)
-11. [Badges and labels](#badges-and-labels)
+1. [Public pages](#public-pages)
+2. [Signing in and the layout](#signing-in-and-the-layout)
+3. [Roles at a glance](#roles-at-a-glance)
+4. [Overview](#overview)
+5. [Monitoring](#monitoring)
+6. [Incidents](#incidents)
+7. [Security Findings](#security-findings)
+8. [Remediation](#remediation)
+9. [Audit Logs](#audit-logs)
+10. [VigilAI / Help](#vigilai--help)
+11. [Settings](#settings)
+12. [Badges and labels](#badges-and-labels)
+
+## Public pages
+
+Two pages need no account.
+
+- **Product page.** The site root (locally <http://localhost:8080>) shows it to anyone who is not signed
+  in: what the platform does, the workflow from a signal to a verified fix, the architecture, the two
+  roles and links to the documentation. A line under the heading says whether the server is answering.
+  **Sign in** leads to the sign-in page. Once you are signed in the site root is the Overview; the
+  product page stays available at `/welcome` (also linked from **VigilAI / Help** as "Product overview").
+- **OrbitCrate.** `/orbitcrate/` is the demonstration application that the platform monitors: a small
+  store with server plans, a price calculator and orders. Orders are not real. Place one and it moves
+  from *Received* to *Provisioning* to *Active* within about 20 seconds; the order list belongs to your
+  browser. The "Store pulse" panel shows the response time of every request the page makes, in green,
+  amber (slow) or red (failed), so a fault injected from the demo controls is visible in the store.
+  **Open application** on the Overview and **Open the monitored application** on Monitoring lead there.
 
 ## Signing in and the layout
 
-Open the web application (locally <http://localhost:8080>) and sign in with your e-mail and password.
+Open the sign-in page (locally <http://localhost:8080/login>, or **Sign in** on the product page) and
+sign in with your e-mail and password.
 Accounts are created by an Administrator; there is no self-registration. The first two accounts come
 from the `.env` file (see [setup](setup.md#signing-in-with-the-bootstrap-accounts)).
 
