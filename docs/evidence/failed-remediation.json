@@ -1,0 +1,170 @@
+{
+  "started_at": "2026-11-24T20:54:12.351063+00:00",
+  "finished_at": "2026-11-24T20:55:53.480986+00:00",
+  "base_url": "http://localhost:8080",
+  "version": "2.0.0",
+  "environment": "development",
+  "scenario": "The monitored application's container is stopped; ACTION-001 cannot reach its recovery endpoint.",
+  "passed": 24,
+  "failed": 0,
+  "measurements": {
+    "stop_to_incident_seconds": {
+      "value": 36.3,
+      "unit": "s (container stop -> incident visible)"
+    },
+    "dispatch_to_failed_seconds": {
+      "value": 22.6,
+      "unit": "s (dispatch -> FAILED, three recovery calls with back-off)"
+    },
+    "retry_to_verified_seconds": {
+      "value": 12.4,
+      "unit": "s (retry -> verified result, includes waiting for the alert to clear)"
+    }
+  },
+  "checks": [
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "1. The application is healthy before the test",
+      "result": "PASS",
+      "detail": "UP"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "2. The application container is stopped (a real outage, not an injected fault)",
+      "result": "PASS",
+      "detail": "[' Container vigilops-test-app-1 Stopped']"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "3. Monitoring reports the scrape target DOWN",
+      "result": "PASS",
+      "detail": "after 8.4s"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "4. The alert opens an incident",
+      "result": "PASS",
+      "detail": "Demo application is unavailable"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "4b. The incident is NOT labelled as simulated: nothing was injected",
+      "result": "PASS",
+      "detail": "is_simulated=False"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "5. Operator requests ACTION-001 -> PENDING_APPROVAL",
+      "result": "PASS",
+      "detail": "PENDING_APPROVAL"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "6. Administrator approves",
+      "result": "PASS",
+      "detail": "APPROVED"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "7. Administrator dispatches to the worker",
+      "result": "PASS",
+      "detail": "QUEUED"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "8. The worker reports the run as FAILED",
+      "result": "PASS",
+      "detail": "FAILED"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "8b. The failure reason says what happened",
+      "result": "PASS",
+      "detail": "The recovery endpoint could not be reached after 3 attempts."
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "8c. The execution record shows the three unanswered recovery calls",
+      "result": "PASS",
+      "detail": "['ConnectError', 'ConnectError', 'ConnectError']"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "8d. One of three attempts was used; a retry is still possible",
+      "result": "PASS",
+      "detail": "1 of 3"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "9. The incident is still active: a failed fix resolves nothing",
+      "result": "PASS",
+      "detail": "OPEN"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "9b. The failure is on the incident's timeline",
+      "result": "PASS",
+      "detail": "['REMEDIATION_REQUESTED', 'REMEDIATION_APPROVED', 'REMEDIATION_QUEUED', 'REMEDIATION_STARTED', 'REMEDIATION_FAILED']"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "9c. Resolving by hand is refused while the alert is firing",
+      "result": "PASS",
+      "detail": "Monitoring still reports this alert as firing. The incident can only be resolved once the condition has cleared."
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "10. The audit trail records the failure as a failure",
+      "result": "PASS",
+      "detail": "{'REMEDIATION_REQUESTED': 'SUCCESS', 'REMEDIATION_APPROVED': 'SUCCESS', 'REMEDIATION_QUEUED': 'SUCCESS', 'REMEDIATION_EXECUTION_STARTED': 'SUCCESS', 'REMEDIATION_EXECUTION_ERROR': 'FAILURE', 'REMEDIATION_FAILED': 'FAILURE'}"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "11. The application container is started again",
+      "result": "PASS",
+      "detail": "[' Container vigilops-test-app-1 Started']"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "11b. Monitoring reports the scrape target UP again",
+      "result": "PASS",
+      "detail": "after 5.3s"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "12. Administrator retries the failed request -> QUEUED",
+      "result": "PASS",
+      "detail": "QUEUED"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "13. The second attempt is executed and verified -> SUCCEEDED",
+      "result": "PASS",
+      "detail": "SUCCEEDED"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "13b. Both attempts are kept: the failed one and the successful one",
+      "result": "PASS",
+      "detail": "['FAILED', 'SUCCEEDED']"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "14. The incident is RESOLVED, with how it was resolved",
+      "result": "PASS",
+      "detail": "Resolved by remediation request #6 (ACTION-001). Recovery verified by fresh health checks and Prometheus observations."
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "15. Audit history shows request, approval, failure, retry and success in that order",
+      "result": "PASS",
+      "detail": "['REMEDIATION_REQUESTED', 'REMEDIATION_APPROVED', 'REMEDIATION_QUEUED', 'REMEDIATION_EXECUTION_STARTED', 'REMEDIATION_EXECUTION_ERROR', 'REMEDIATION_FAILED', 'REMEDIATION_RETRY_QUEUED', 'REMEDIATION_EXECUTION_STARTED', 'REMEDIATION_EXECUTED', 'REMEDIATION_VERIFICATION_PASSED', 'REMEDIATION_SUCCEEDED']"
+    },
+    {
+      "demo": "DEMO 4 - Remediation that fails, and its retry",
+      "check": "16. Administrator closes the incident after review",
+      "result": "PASS",
+      "detail": "CLOSED"
+    }
+  ]
+}
