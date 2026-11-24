@@ -1,7 +1,8 @@
 # VigilOps reverse proxy (Caddy)
 #
 # The only public entry point of the platform:
-#   /api/*      -> FastAPI backend (internal network)
+#   /api/*          -> FastAPI backend (internal network)
+#   /orbitcrate/*   -> the demonstration application's storefront (internal network)
 #   everything else -> the React single-page application
 #
 # Only paths under /api/ reach the backend (including the unauthenticated
@@ -38,6 +39,23 @@
 
 	handle /api/* {
 		reverse_proxy backend:8000
+	}
+
+	# OrbitCrate, the monitored demonstration application, at its own address.
+	# Only its page, its static files and its store API are routed.  Its control
+	# endpoints (/internal/*), /metrics and /health/* are not reachable here.
+	redir /orbitcrate /orbitcrate/ 308
+	handle_path /orbitcrate/* {
+		@visitor path / /static/* /api/*
+		handle @visitor {
+			request_body {
+				max_size 4KB
+			}
+			reverse_proxy test-app:8001
+		}
+		handle {
+			respond "Not Found" 404
+		}
 	}
 
 	handle {
