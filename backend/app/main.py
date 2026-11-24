@@ -16,6 +16,7 @@ from sqlalchemy import inspect
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.router import api_router
+from app.api.store import router as store_router
 from app.core.config import settings
 from app.core.database import SessionLocal, check_database, engine
 from app.core.logging import configure_logging
@@ -294,3 +295,6 @@ def metrics() -> Response:
 
 
 app.include_router(api_router)
+# The demonstration application's public address on this port.  It answers 404
+# unless SERVE_DEMO_APP is set (hosts without a reverse proxy in front).
+app.include_router(store_router)

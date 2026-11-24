@@ -120,6 +120,11 @@ class Settings(BaseSettings):
     # Needed when the API port itself is the public port (no reverse proxy in
     # front that withholds those paths).
     INTERNAL_ENDPOINTS_LOCAL_ONLY: bool = False
+    # Pass the demonstration application's storefront (its page, static files and
+    # store API - never its control endpoints or metrics) through this API under
+    # /orbitcrate/.  For hosts with one public port; in the Compose stack the
+    # reverse proxy routes that address to the application directly.
+    SERVE_DEMO_APP: bool = False
 
     # --- Security scanner ---------------------------------------------
     SECURITY_RULES_DIR: str = str(REPO_ROOT / "security-rules")
