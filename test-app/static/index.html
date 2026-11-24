@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OrbitCrate - cloud servers with flat monthly pricing</title>
+  <meta name="description" content="OrbitCrate is the demonstration storefront monitored by VigilOps: browse server plans, estimate a price and place a demonstration order.">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0c1533">
+  <link rel="icon" href="static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="static/fonts/manrope-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="static/styles.css">
+  <script src="static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#plans">Skip to plans</a>
+
+  <p class="notice" role="note">
+    <strong>Demonstration store.</strong>
+    Orders are not real: nothing is provisioned and nothing is charged.
+  </p>
+
+  <header class="top">
+    <div class="wrap top__row">
+      <a class="brand" href="#top" aria-label="OrbitCrate home">
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <g transform="rotate(-24 16 16)" fill="none" stroke-width="2.2" stroke-linecap="round">
+            <path class="brand__ring" d="M2 16A14 5.4 0 0 1 30 16"/>
+            <rect class="brand__crate" x="9.5" y="9.5" width="13" height="13" rx="3.2" stroke="none" transform="rotate(24 16 16)"/>
+            <path class="brand__ring" d="M2 16A14 5.4 0 0 0 30 16"/>
+          </g>
+        </svg>
+        <span>OrbitCrate</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#plans">Plans</a>
+        <a href="#configure">Configure</a>
+        <a href="#orders">Your orders <span class="count" id="order-count" hidden>0</span></a>
+      </nav>
+      <p class="pill" id="status-pill" data-state="checking" role="status">
+        <span class="pill__dot" aria-hidden="true"></span>
+        <span id="status-text">Checking the store</span>
+      </p>
+    </div>
+    <div class="alert" id="alert" role="alert" hidden></div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <svg class="hero__art" viewBox="0 0 600 520" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+        <g fill="none" stroke="currentColor" stroke-width="1.1" transform="rotate(-16 330 260)">
+          <ellipse cx="330" cy="260" rx="330" ry="124" opacity=".36"/>
+          <ellipse cx="330" cy="260" rx="246" ry="90" opacity=".28"/>
+          <ellipse cx="330" cy="260" rx="164" ry="58" opacity=".2"/>
+        </g>
+        <rect class="hero__crate" x="548" y="78" width="20" height="20" rx="5" fill="#ffb224"/>
+        <rect class="hero__crate" x="92" y="446" width="13" height="13" rx="3.5" fill="#7d93ff"/>
+      </svg>
+      <div class="wrap hero__grid">
+        <div class="hero__copy">
+          <p class="kicker">Virtual servers &middot; Mumbai, Singapore, Frankfurt</p>
+          <h1>Pick a crate.<br>Launch it.<br><span class="mark">Get back to building.</span></h1>
+          <p class="lead">
+            Virtual servers with flat monthly pricing. Choose a size, a region and the extras
+            you need; the full price is shown before you order.
+          </p>
+          <div class="hero__actions">
+            <a class="btn btn--primary" href="#configure">Configure a server</a>
+            <a class="btn btn--ghost" href="#plans">Compare plans</a>
+          </div>
+        </div>
+
+        <aside class="pulse" aria-labelledby="pulse-title">
+          <div class="pulse__head">
+            <h2 id="pulse-title">Store pulse</h2>
+            <span class="pulse__state" id="pulse-state" data-state="checking">Checking</span>
+          </div>
+          <p class="pulse__value"><span id="pulse-ms">--</span><small>ms, last response</small></p>
+          <div class="pulse__bars" id="pulse-bars" aria-hidden="true"></div>
+          <p class="pulse__note">
+            Each bar is one request this page sent to the store API, timed in your browser.
+            <span id="pulse-summary"></span>
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="plans" aria-labelledby="plans-title">
+      <div class="wrap">
+        <header class="section__head">
+          <p class="eyebrow">Plans</p>
+          <h2 id="plans-title">Four sizes, one price each</h2>
+          <p>Every crate includes SSD storage, a monthly transfer allowance and a private network address. Prices are per server, per month, in Mumbai, before GST.</p>
+        </header>
+        <div class="plans" id="plan-grid" aria-live="polite">
+          <p class="placeholder">Loading plans&hellip;</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tint" id="configure" aria-labelledby="configure-title">
+      <div class="wrap">
+        <header class="section__head">
+          <p class="eyebrow">Configure</p>
+          <h2 id="configure-title">Build your order</h2>
+          <p>The price on the right is calculated by the store each time you change something.</p>
+        </header>
+
+        <form class="builder" id="builder" novalidate>
+          <div class="builder__form">
+            <fieldset class="step">
+              <legend><span class="step__n">1</span> Size</legend>
+              <div class="tiles tiles--plans" id="plan-options"></div>
+            </fieldset>
+
+            <fieldset class="step">
+              <legend><span class="step__n">2</span> Region</legend>
+              <div class="tiles tiles--regions" id="region-options"></div>
+            </fieldset>
+
+            <fieldset class="step">
+              <legend><span class="step__n">3</span> Number of servers</legend>
+              <div class="stepper">
+                <button type="button" class="stepper__btn" id="quantity-less" aria-label="One server fewer">&minus;</button>
+                <input class="stepper__value" id="quantity" name="quantity" type="number" inputmode="numeric" min="1" max="10" value="1" aria-label="Number of servers">
+                <button type="button" class="stepper__btn" id="quantity-more" aria-label="One server more">+</button>
+                <span class="stepper__hint">1 to 10 per order</span>
+              </div>
+            </fieldset>
+
+            <fieldset class="step">
+              <legend><span class="step__n">4</span> Extras</legend>
+              <div class="extras" id="addon-options"></div>
+            </fieldset>
+
+            <fieldset class="step">
+              <legend><span class="step__n">5</span> Billing</legend>
+              <div class="segmented" id="term-options"></div>
+            </fieldset>
+          </div>
+
+          <aside class="summary" aria-labelledby="summary-title">
+            <h3 id="summary-title">Your price</h3>
+            <div id="summary-body" aria-live="polite">
+              <p class="summary__wait">Choose a size to see the price.</p>
+            </div>
+            <label class="field" for="project">
+              <span>Project name</span>
+              <input id="project" name="project" type="text" maxlength="40" autocomplete="off" placeholder="for example: campus-portal">
+            </label>
+            <p class="field__error" id="project-error" hidden></p>
+            <button class="btn btn--primary btn--wide" type="submit" id="place-order" disabled>Place order</button>
+            <p class="summary__small">Placing an order creates a record in this demonstration only.</p>
+          </aside>
+        </form>
+      </div>
+    </section>
+
+    <section class="section" id="orders" aria-labelledby="orders-title">
+      <div class="wrap">
+        <header class="section__head">
+          <p class="eyebrow">Your orders</p>
+          <h2 id="orders-title">Follow an order as it is set up</h2>
+          <p>Orders belong to this browser. Each one moves from received to provisioning to active.</p>
+        </header>
+        <div class="orders" id="order-list" aria-live="polite">
+          <p class="placeholder">Loading your orders&hellip;</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot__row">
+      <div>
+        <p class="brand brand--foot">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <g transform="rotate(-24 16 16)" fill="none" stroke-width="2.2" stroke-linecap="round">
+              <path class="brand__ring" d="M2 16A14 5.4 0 0 1 30 16"/>
+              <rect class="brand__crate" x="9.5" y="9.5" width="13" height="13" rx="3.2" stroke="none" transform="rotate(24 16 16)"/>
+              <path class="brand__ring" d="M2 16A14 5.4 0 0 0 30 16"/>
+            </g>
+          </svg>
+          <span>OrbitCrate</span>
+        </p>
+        <p class="foot__text">
+          OrbitCrate is a fictional provider. This store is the demonstration application of the
+          VigilOps project: its request counts, response times and errors are real measurements,
+          and VigilOps monitors them.
+        </p>
+      </div>
+      <p class="foot__link" id="console-link" hidden>
+        <a class="btn btn--line" href="/">Open VigilOps</a>
+        <span>The platform that monitors this store</span>
+      </p>
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <noscript><p class="noscript">This store needs JavaScript to load plans and prices.</p></noscript>
+</body>
+</html>
