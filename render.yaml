@@ -47,6 +47,11 @@ services:
       # answer only the Prometheus process inside the container.
       - key: INTERNAL_ENDPOINTS_LOCAL_ONLY
         value: "true"
+      # There is no reverse proxy in this container, so the API passes the
+      # demonstration application's storefront through under /orbitcrate/
+      # (its page, static files and store API; never its control endpoints).
+      - key: SERVE_DEMO_APP
+        value: "true"
       - key: MONITORING_HTTP_TIMEOUT_SECONDS
         value: "8"
       # Synthetic load on the demonstration application: one request per second

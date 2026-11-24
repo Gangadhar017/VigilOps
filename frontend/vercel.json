@@ -4,6 +4,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://vigilops.onrender.com/api/:path*" },
+    { "source": "/orbitcrate/:path(.*)", "destination": "https://vigilops.onrender.com/orbitcrate/:path" },
+    { "source": "/orbitcrate", "destination": "https://vigilops.onrender.com/orbitcrate/" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

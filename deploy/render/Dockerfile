@@ -50,6 +50,7 @@ COPY backend/app ./app
 COPY knowledge_base /srv/vigilops/knowledge_base
 COPY security-rules /srv/vigilops/security-rules
 COPY test-app/app.py /srv/vigilops/test-app/app.py
+COPY test-app/static /srv/vigilops/test-app/static
 # The monitoring configuration is the version-controlled one used by the Compose
 # stack; the launcher only rewrites the host names to 127.0.0.1.
 COPY monitoring /srv/vigilops/monitoring
@@ -65,6 +66,11 @@ ENV KNOWLEDGE_BASE_DIR=/srv/vigilops/knowledge_base \
     SECURITY_RULES_DIR=/srv/vigilops/security-rules \
     SCAN_WORKSPACE_DIR=/data/scan-workspace \
     PORT=10000
+
+# This image has no reverse proxy, so the API passes the demonstration
+# application's storefront through under /orbitcrate/ (page, static files and
+# store API only).  Set SERVE_DEMO_APP=false on the host to keep it private.
+ENV SERVE_DEMO_APP=true
 
 EXPOSE 10000
 
