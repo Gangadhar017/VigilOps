@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, Eye, EyeOff, Info, LogIn } from 'lucide-react';
 import { errorMessage } from '../api/client';
 import { Brand } from '../components/Sidebar';
@@ -26,7 +26,9 @@ function Introduction() {
         aria-hidden="true"
       />
       <div className="relative">
-        <Brand onChrome />
+        <Link to="/welcome" aria-label="VigilOps product page" className="inline-block rounded-md focus-visible:ring-offset-chrome">
+          <Brand onChrome />
+        </Link>
       </div>
 
       <div className="relative mt-8 lg:mt-0">
@@ -55,7 +57,7 @@ function Introduction() {
 }
 
 export default function Login() {
-  const { user, loading, login, sessionMessage } = useAuth();
+  const { user, loading, login, sessionMessage, acknowledgeSessionEnd } = useAuth();
   const server = useServerStatus();
   const navigate = useNavigate();
   const location = useLocation();
@@ -64,6 +66,12 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // The sign-in page is where an ended session lands; from here the site root
+  // shows the product page again.
+  useEffect(() => {
+    acknowledgeSessionEnd();
+  }, [acknowledgeSessionEnd]);
 
   const destination = location.state?.from && location.state.from !== '/login' ? location.state.from : '/';
   if (!loading && user) return <Navigate to={destination} replace />;
@@ -179,7 +187,10 @@ export default function Login() {
           </form>
 
           <p className="mt-8 border-t border-line pt-4 text-xs leading-5 text-muted">
-            Accounts are created by an Administrator. There is no self-registration.
+            Accounts are created by an Administrator. There is no self-registration.{' '}
+            <Link to="/welcome" className="font-medium text-content underline decoration-line underline-offset-4 hover:decoration-content">
+              What is VigilOps?
+            </Link>
           </p>
         </div>
       </div>

@@ -8,6 +8,10 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionMessage, setSessionMessage] = useState('');
+  // True from the moment a session ends (sign-out, expiry, a stored token the
+  // server refuses) until the sign-in page has been shown.  The site root uses
+  // it to send that visitor to the sign-in page instead of the product page.
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   // Restore the session (if any) by asking the backend who the token belongs to.
   useEffect(() => {
@@ -22,6 +26,7 @@ export function AuthProvider({ children }) {
         if (!cancelled) setUser(me);
       } catch {
         tokenStore.clear();
+        if (!cancelled) setSessionEnded(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -36,6 +41,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null);
+      setSessionEnded(true);
       setSessionMessage('Your session has ended. Please sign in again.');
     };
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
@@ -46,6 +52,7 @@ export function AuthProvider({ children }) {
     const data = await authApi.login(email, password);
     tokenStore.set(data.access_token);
     setSessionMessage('');
+    setSessionEnded(false);
     setUser(data.user);
     return data.user;
   }, []);
@@ -57,9 +64,12 @@ export function AuthProvider({ children }) {
       /* the local session is cleared regardless */
     }
     tokenStore.clear();
+    setSessionEnded(true);
     setUser(null);
     setSessionMessage('');
   }, []);
+
+  const acknowledgeSessionEnd = useCallback(() => setSessionEnded(false), []);
 
   const value = useMemo(() => {
     const permissions = new Set(user?.permissions || []);
@@ -67,13 +77,15 @@ export function AuthProvider({ children }) {
       user,
       loading,
       sessionMessage,
+      sessionEnded,
+      acknowledgeSessionEnd,
       login,
       logout,
       isAdmin: user?.role === 'admin',
       // UI hint only - every permission is enforced again by the backend.
       can: (permission) => permissions.has(permission),
     };
-  }, [user, loading, sessionMessage, login, logout]);
+  }, [user, loading, sessionMessage, sessionEnded, acknowledgeSessionEnd, login, logout]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

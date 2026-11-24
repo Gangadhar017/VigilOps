@@ -12,32 +12,37 @@ import Findings from './pages/Findings';
 import Help from './pages/Help';
 import IncidentDetail from './pages/IncidentDetail';
 import Incidents from './pages/Incidents';
+import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Monitoring from './pages/Monitoring';
 import Remediation from './pages/Remediation';
 import RemediationDetail from './pages/RemediationDetail';
 import Settings from './pages/Settings';
 
-/** Routes below this guard require a signed-in user. The backend enforces the same. */
-function RequireAuth({ children }) {
-  const { user, loading } = useAuth();
+/**
+ * The console. Its pages require a signed-in user; the backend enforces the same.
+ *
+ * A visitor who is not signed in sees the public product page at the site root
+ * and is sent to the sign-in page from everywhere else. A session that has just
+ * ended (sign-out, expiry, a stored token the server no longer accepts) goes to
+ * the sign-in page from the root as well, so that the reason can be shown there.
+ */
+function Console() {
+  const { user, loading, sessionEnded } = useAuth();
   const location = useLocation();
   if (loading) return <LoadingState label="Checking your session…" className="min-h-screen" />;
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
-  return children;
+  if (user) return <AppLayout />;
+  if (location.pathname === '/' && !sessionEnded) return <Landing />;
+  return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
 }
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route
-        element={
-          <RequireAuth>
-            <AppLayout />
-          </RequireAuth>
-        }
-      >
+      {/* The product page, also for someone who is signed in. */}
+      <Route path="/welcome" element={<Landing />} />
+      <Route element={<Console />}>
         <Route index element={<Dashboard />} />
         <Route path="monitoring" element={<Monitoring />} />
         <Route path="incidents" element={<Incidents />} />
