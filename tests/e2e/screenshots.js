@@ -4,6 +4,7 @@
 //   node screenshots.js                         every page, dark and light, into ../../.runtime/shots
 //   node screenshots.js --out=../../docs/screenshots --theme=dark
 //   node screenshots.js --only=login,overview --mobile
+//   node screenshots.js --only=landing,orbitcrate   the two public pages
 //
 // Used to review the interface after a visual change and to produce the
 // screenshots in the documentation.  It signs in with the bootstrap
@@ -57,6 +58,27 @@ async function run(browser, theme) {
   const context = await browser.newContext({ viewport: VIEWPORT, colorScheme: theme, baseURL: BASE });
   await context.addInitScript((value) => window.localStorage.setItem('vigilops.theme', value), theme);
   const page = await context.newPage();
+
+  // Public pages first: the product page and the demonstration application.
+  if (wanted('landing')) {
+    await page.goto('/');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    await settle(page, 1200);
+    await shot(page, theme, 'landing');
+  }
+  if (wanted('orbitcrate') && theme === THEMES[0]) {
+    // The store has one appearance of its own, so it is captured once, without a theme prefix.
+    await page.goto('/orbitcrate/');
+    await page.getByRole('heading', { name: 'Crate XL' }).waitFor();
+    await settle(page, 6000);
+    if (!MOBILE) {
+      const file = path.join(OUT, 'orbitcrate.png');
+      await page.screenshot({ path: file, animations: 'disabled' });
+      console.log('  wrote', path.relative(process.cwd(), file));
+    } else {
+      await shot(page, theme, 'orbitcrate');
+    }
+  }
 
   await page.goto('/login');
   await settle(page);
