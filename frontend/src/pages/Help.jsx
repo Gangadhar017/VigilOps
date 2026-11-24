@@ -59,9 +59,14 @@ export default function Help() {
         title="VigilAI / Help"
         subtitle="VigilAI is the built-in, read-only assistant for the VigilOps platform. It lives in the chat button at the bottom-right corner of every page."
         actions={
-          <button type="button" className="btn-primary btn-sm" onClick={() => askVigilAI()}>
-            <Bot size={14} aria-hidden="true" /> Open VigilAI
-          </button>
+          <>
+            <Link to="/welcome" className="btn-secondary btn-sm">
+              Product overview
+            </Link>
+            <button type="button" className="btn-primary btn-sm" onClick={() => askVigilAI()}>
+              <Bot size={14} aria-hidden="true" /> Open VigilAI
+            </button>
+          </>
         }
       />
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight } from 'lucide-react';
 import { monitoringApi } from '../api/monitoring';
 import { LiveTag } from '../components/DataSourceTag';
 import { MetricCard } from '../components/MetricCard';
@@ -7,6 +7,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, InlineError, LoadingState, Notice } from '../components/States';
 import { StatusBadge } from '../components/StatusBadge';
 import { TimeSeriesChart } from '../components/TimeSeriesChart';
+import { DEMO_APP_URL } from '../config/links';
 import { useApi } from '../hooks/useApi';
 import { formatDateTime, formatMetric, utcTitle } from '../utils/format';
 
@@ -56,6 +57,11 @@ export default function Monitoring() {
         subtitle="Live telemetry scraped by Prometheus. Every value is a real measurement; when Prometheus has no sample the metric is shown as unavailable."
         onRefresh={reload}
         refreshing={refreshing}
+        actions={
+          <a href={DEMO_APP_URL} target="_blank" rel="noreferrer" className="btn-secondary btn-sm" title="OrbitCrate, the monitored demonstration application">
+            Open the monitored application <ArrowUpRight size={13} aria-hidden="true" />
+          </a>
+        }
       >
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <LiveTag at={data.generated_at} />

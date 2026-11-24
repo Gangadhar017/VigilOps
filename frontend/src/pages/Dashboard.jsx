@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, FlaskConical, ShieldAlert, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, CheckCircle2, ClipboardCheck, FlaskConical, ShieldAlert, XCircle } from 'lucide-react';
 import { monitoringApi } from '../api/monitoring';
 import { LiveTag } from '../components/DataSourceTag';
 import { MetricCard } from '../components/MetricCard';
@@ -8,6 +8,7 @@ import { PageHeader } from '../components/PageHeader';
 import { EmptyState, ErrorState, InlineError, LoadingState, Notice } from '../components/States';
 import { StatusBadge } from '../components/StatusBadge';
 import { TimeSeriesChart } from '../components/TimeSeriesChart';
+import { DEMO_APP_URL } from '../config/links';
 import { useApi } from '../hooks/useApi';
 import { formatDateTime, formatMetric, humanAction, timeAgo, utcTitle } from '../utils/format';
 
@@ -81,7 +82,12 @@ function ResourceCard({ resource, generatedAt }) {
           <h3 className="text-sm font-semibold text-content">{resource.name}</h3>
           <p className="truncate text-xs text-muted">{resource.description}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {resource.resource_type === 'application' ? (
+            <a href={DEMO_APP_URL} target="_blank" rel="noreferrer" className={`${CARD_LINK} mr-1 inline-flex items-center gap-1`}>
+              Open application <ArrowUpRight size={12} aria-hidden="true" />
+            </a>
+          ) : null}
           <LiveTag at={generatedAt} />
           <StatusBadge status={resource.status} />
         </div>
