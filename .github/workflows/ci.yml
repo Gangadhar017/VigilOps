@@ -41,12 +41,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Lint
-        run: ruff check app tests
+        run: ruff check app tests && ruff check --config ruff.toml ../test-app
       - name: Run tests
         env:
           # Empty for the sqlite job (the suite then uses a temporary SQLite file).
           TEST_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql://vigilops:ci-test-password@localhost:5432/vigilops_test' || '' }}
         run: pytest
+      - name: Demonstration application tests
+        if: matrix.database == 'sqlite'   # the application has no database; once is enough
+        run: pytest ../test-app/tests -q -p no:cacheprovider
 
   frontend:
     name: Frontend tests and build
@@ -128,6 +131,14 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/metrics)" = 404
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/health/ready)" = 404
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/docs)" = 404
+      - name: The demonstration store is public; its control and metrics paths are not
+        run: |
+          curl -s http://127.0.0.1:10000/orbitcrate/ | grep -q '<base href="/orbitcrate/">'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/orbitcrate/static/app.js)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/orbitcrate/api/catalog)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/orbitcrate/internal/state)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/orbitcrate/metrics)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:10000/orbitcrate/health/ready)" = 404
       - name: Run the three demonstrations against it
         run: python scripts/run_e2e_demos.py --base-url http://127.0.0.1:10000 --no-save
       - name: Memory in use and container log on failure
@@ -155,6 +166,8 @@ jobs:
           sh scripts/verify_stack.sh
       - name: Run the three demonstrations against the running stack
         run: python scripts/run_e2e_demos.py --no-save
+      - name: Run the failed-remediation demonstration (stops and starts the application container)
+        run: python scripts/run_failed_remediation_demo.py --no-save
       - name: Container logs on failure
         if: failure()
         run: docker compose logs --tail=200

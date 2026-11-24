@@ -43,6 +43,14 @@ code="$(curl -ks -o /dev/null -w '%{http_code}' "${BASE_URL}/api/incidents")"
 code="$(curl -ks -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' -d '{"alerts":[]}' "${BASE_URL}/api/alerts/webhook")"
 [ "${code}" = "401" ] || [ "${code}" = "422" ] && pass "alert webhook rejects unauthenticated calls (HTTP ${code})" || fail "alert webhook returned HTTP ${code}"
 
+echo "Demonstration application (${BASE_URL}/orbitcrate/)"
+curl -ks "${BASE_URL}/orbitcrate/" | grep -q 'OrbitCrate' && pass "the storefront is served" || fail "the storefront is not served at /orbitcrate/"
+curl -ks "${BASE_URL}/orbitcrate/api/catalog" | grep -q '"plans"' && pass "the store API answers" || fail "the store API does not answer"
+for path in internal/state metrics health/ready; do
+  code="$(curl -ks -o /dev/null -w '%{http_code}' "${BASE_URL}/orbitcrate/${path}")"
+  [ "${code}" = "404" ] && pass "the application's /${path} is not exposed (HTTP 404)" || fail "the application's /${path} returned HTTP ${code}"
+done
+
 echo "Internal endpoints must not be exposed by the reverse proxy"
 if curl -ks "${BASE_URL}/metrics" | grep -q 'http_requests_total'; then fail "/metrics is exposed publicly"; else pass "/metrics is not exposed"; fi
 if curl -ks "${BASE_URL}/openapi.json" | grep -q '"openapi"'; then fail "/openapi.json is exposed publicly"; else pass "/openapi.json is not exposed"; fi
