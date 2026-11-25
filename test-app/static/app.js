@@ -439,10 +439,14 @@
 
   // Behind a path prefix the platform that monitors this store is at the site root.
   if (location.pathname.replace(/\/+$/, '') !== '') $('console-link').hidden = false;
-  // Opened without the trailing slash (possible behind some proxies, which then
-  // supply a base element so that everything still loads): tidy the address.
-  if (!location.pathname.endsWith('/')) {
-    history.replaceState(null, '', `${location.pathname}/${location.search}${location.hash}`);
+  // Behind some proxies the page is reached under another address below the
+  // store's own one: without the trailing slash, or through a start page that
+  // waits for the server.  The proxy then supplies a base element so that
+  // everything still loads; show the store's own address.
+  const base = document.querySelector('base[href]');
+  const home = base ? new URL(base.href).pathname : `${location.pathname.replace(/\/+$/, '')}/`;
+  if (location.pathname !== home) {
+    history.replaceState(null, '', `${home}${location.search}${location.hash}`);
   }
 
   renderPulse();
