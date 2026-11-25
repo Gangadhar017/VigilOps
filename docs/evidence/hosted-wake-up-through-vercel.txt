@@ -1,0 +1,96 @@
+Which requests start the sleeping hosted service (Render free plan, behind Vercel)
+==================================================================================
+
+Two recordings of 2026-11-25, both made with Chromium after the service had received no request
+for 18 minutes. "through Vercel" is a request to the Vercel address that Vercel forwards to the
+Render service; "direct" is a request to the Render address itself. "t" counts from the moment
+the browser started asking.
+
+Recording 1, 17:00:31 to 17:06:02 UTC: the store's address, first version of the start page
+-------------------------------------------------------------------------------------------
+
+The start page asked the store's status address through Vercel every three seconds and sent
+nothing to the Render address.
+
+17:00:31Z the browser opens https://frontend-sigma-one-0hshbxb8vj.vercel.app/orbitcrate/
+t=   2.9s  answer  200  /orbitcrate/  from Vercel
+t=   3.0s  the visitor sees  start page: "Opening the store" (state opening)
+t=   3.0s  answer  200  /orbitcrate-start.js  from Vercel
+t=   3.4s  the visitor sees  start page: "Starting the demonstration server" (state starting)  Waiting for 0:00
+t=  15.5s  the visitor sees  Waiting for 0:12
+t= 246.6s  the visitor sees  start page: "The store is not answering" (state unreachable)  Waiting for 4:03
+t= 330.3s  gave up: the store was not shown
+
+Status requests through Vercel: 73, sent from t=3.3s to t=246.3s.
+Every one of them was answered by Render itself: HTTP 502, routing "no-deploy" (73 of 73).
+None was answered by the application, and the service did not start in these four minutes.
+The visitor saw the start page throughout, never a page of the hosting platform.
+
+What followed, asked with curl (the time is the moment the answer or the timeout arrived):
+
+17:06:42  direct       /api/health                   no answer within 8 s (the request was held)
+17:06:43  direct       /api/health, browser headers  503  Render's page "Application loading" (routing: hibernate-pending-wake)
+17:06:53  direct       /orbitcrate/api/status        no answer within 8 s (the request was held)
+17:06:58  through Vercel  /orbitcrate/api/status     502  the API: the store has not started yet (after 4.3 s)
+17:06:59  through Vercel  /api/health                200  the API: healthy
+17:07:03  direct       /api/health                   200  the API: healthy
+17:07:05  direct       /orbitcrate/api/status        200  the store: operational
+
+The first direct request was sent at about 17:06:34; the store answered 31 seconds later.
+
+Recording 2, 17:27:51 to 17:29:39 UTC: the three kinds of request, one after the other
+--------------------------------------------------------------------------------------
+
+Phase A: only background requests through Vercel. Phase B: additionally one page navigation
+through Vercel. Phase C: one request from the browser straight to the Render address. The
+store's status address was asked through Vercel every three seconds throughout.
+
+17:27:51Z phase A: only background requests through Vercel
+t=   0.3s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=   4.1s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=   7.8s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  11.3s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  14.9s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  18.4s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  21.8s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  25.2s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  28.8s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  32.1s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  35.8s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  39.3s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  42.7s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+17:28:37Z phase B: one page navigation through Vercel (/api/health)
+t=  46.1s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  46.2s  through Vercel    /api/health              502  from Render itself (routing: no-deploy)  [navigation]
+t=  49.5s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  53.0s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  56.4s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  59.7s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  63.2s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  66.5s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  69.8s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t=  73.3s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+17:29:07Z phase C: one no-cors request from the browser straight to https://vigilops.onrender.com/health/live
+t=  76.8s  through Vercel    /orbitcrate/api/status   502  from Render itself (routing: no-deploy)  [background]
+t= 101.5s  through Vercel    /orbitcrate/api/status   502  from the app  [background]
+t= 101.6s  DIRECT to Render  /health/live             200  (answer not readable across origins)  [background]
+t= 101.6s  the direct request settled (opaque) in the page
+t= 104.7s  through Vercel    /orbitcrate/api/status   502  from the app  [background]
+t= 108.1s  through Vercel    /orbitcrate/api/status   200  from the app  [background]
+
+Requests through Vercel answered by Render itself with HTTP 502, routing "no-deploy": 24
+(23 background requests and 1 page navigation). The service did not start.
+The direct request was sent at t=76.5s. It was held and answered HTTP 200 at t=101.6s; the next
+request through Vercel was answered by the application, and the store answered 31.6 seconds after
+the direct request.
+
+What the two recordings show
+----------------------------
+
+While the service was asleep, a request that Vercel forwarded to it did not start it: Render
+answered each one with its 502 page. A request to the Render address itself started it, and the
+store answered about 31 seconds later. In the recording of 15:07 UTC (hosted-wake-up.txt) both kinds
+were sent at the same moment, which is why it did not show the difference.
+
+Not established: why Render treats the two kinds differently (no statement about it was found in
+its documentation), and whether it always does; these are two recordings from one day.
