@@ -76,6 +76,10 @@ def test_internal_endpoints_answer_only_local_callers_when_the_api_port_is_publi
     # What the platform and the frontend need stays public.
     assert outside.get("/health/live").status_code == 200
     assert outside.get("/api/health").status_code == 200
+    # An uptime monitor that keeps a sleeping host awake may send HEAD instead of GET.
+    for path in ("/health/live", "/api/health"):
+        answer = outside.head(path)
+        assert answer.status_code == 200 and answer.content == b""
 
 
 def test_liveness_discloses_nothing_in_production(client, monkeypatch):

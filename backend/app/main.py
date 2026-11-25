@@ -234,8 +234,12 @@ async def unhandled_exception_handler(_request: Request, exc: Exception):
 
 # ---------------------------------------------------------------------------
 # Health and metrics (not under /api; /metrics is never routed by the reverse proxy)
+#
+# The two public probes also answer HEAD: uptime monitors and some platform
+# checks send HEAD, and a 405 would be reported as "down".
 # ---------------------------------------------------------------------------
 @app.get("/health/live", tags=["Health"], summary="Liveness probe")
+@app.head("/health/live", include_in_schema=False)
 def health_live() -> Dict[str, Any]:
     """The process is running.  Does not check dependencies."""
     if settings.is_production:
@@ -266,6 +270,7 @@ def health_ready(response: Response) -> Dict[str, Any]:
 
 
 @app.get("/api/health", tags=["Health"], summary="Combined health summary")
+@app.head("/api/health", include_in_schema=False)
 def api_health(response: Response) -> Dict[str, Any]:
     result = health_ready(response)
     if settings.is_production:
