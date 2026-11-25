@@ -488,13 +488,44 @@ found in its documentation), and whether it always does. These are two recording
 | ... the browser's console | no content-policy violation and no script error |
 | The Compose stack rebuilt with this change | `/wake` answered HTTP 204; `sh scripts/verify_stack.sh` **25 of 25**; `cd tests/e2e && npx playwright test` **16 passed** |
 
+### After the second push: the wake-up on the live deployment
+
+The eight commits were pushed to `main` on 2026-11-25 at 17:52 UTC (`e43dd9d..27d0315`). Six minutes
+later the owner's edit of the README (`10fc041`) deployed both hosts once more; the recording below was
+made after that deployment.
+
+| Check | Result |
+|---|---|
+| GitHub Actions run 45669265088 (run 14, commit `27d0315`) | **6 of 6 jobs succeeded** in 7 min 46 s. Run 15, on `10fc041`, also completed successfully |
+| `/wake` on the Vercel address | HTTP 307 with `Location: https://vigilops.onrender.com/health/live` |
+| The content policy sent with `/orbitcrate/` and with `/login` | `connect-src 'self' https://vigilops.onrender.com` |
+| In Chromium, service awake: a request to `/wake` from a page on the Vercel address | redirected by Vercel and then answered HTTP 200 by the Render address; no content-policy violation |
+| In Chromium, service awake: the store's address and the sign-in page | the store was shown after 1.1 and 2.1 s; the sign-in page showed no waiting notice; neither sent a request to `/wake` or to the Render address |
+| **The store's address in Chromium, after 23 minutes in which this check sent nothing, through the Vercel address only** | **The store opened by itself, 39.3 s after the address was opened** |
+
+What that last recording shows, step by step ([`evidence/hosted-wake-up-through-vercel.txt`](evidence/hosted-wake-up-through-vercel.txt),
+recording 3; the script that drove the browser sent nothing itself):
+
+| Seconds after the address was opened | What happened |
+|---|---|
+| 3.5 | Vercel answered with the start page |
+| 4.5 | The first status request through Vercel was answered by Render itself: HTTP 502, routing `no-deploy`. The service was asleep |
+| 4.9 | The page requested `/wake`, Vercel redirected it, and the browser asked the Render address. The page said "Starting the demonstration server" and counted |
+| 31.1 | The Render address answered that request with HTTP 200. From here on the application answered the status requests: twice HTTP 502 while the store was still starting |
+| 38.1 | The store answered the status request |
+| 39.3 | The store was on screen at `/orbitcrate/` |
+
+The visitor never saw a page of the hosting platform, and the browser reported no error apart from the
+three failed status requests of the wait.
+
 Not verified in this section:
 
-* **The second change on the live deployment.** It was not deployed when this was written. The model
-  follows what was recorded, but it is a model: whether Vercel's redirect and the changed content policy
-  let the browser's request through, and whether that request starts the service as it did from a blank
-  page, is UNVERIFIED until the store's address has been opened once against a sleeping service after
-  the deployment.
+* **The sign-in page and the product page after a pause, on the live deployment.** They send the same
+  request to `/wake`, from the console's code (`frontend/src/api/wake.js`). That path passed its tests
+  and the model, but it was not recorded against the sleeping service: one attempt was ended too early by
+  a mistake in the test script, half a minute later the service was awake, and no further attempt was
+  made. UNVERIFIED.
+* **More than one wake-up.** The store's wake-up on the live deployment was recorded once.
 * **Why Render does not start the service for forwarded requests,** and whether that is always so.
 * **An uptime monitor.** None is set up by this repository. Whether one keeps this service awake, and
   whether the 750 free instance hours of the Render workspace are enough for it, was not tried.
