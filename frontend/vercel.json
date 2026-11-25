@@ -4,8 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://vigilops.onrender.com/api/:path*" },
+    { "source": "/orbitcrate", "destination": "/orbitcrate-start.html" },
+    { "source": "/orbitcrate/", "destination": "/orbitcrate-start.html" },
+    { "source": "/orbitcrate/open", "destination": "https://vigilops.onrender.com/orbitcrate/" },
     { "source": "/orbitcrate/:path(.*)", "destination": "https://vigilops.onrender.com/orbitcrate/:path" },
-    { "source": "/orbitcrate", "destination": "https://vigilops.onrender.com/orbitcrate/" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
