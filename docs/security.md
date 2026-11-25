@@ -196,6 +196,8 @@ Response headers set by Caddy on every response:
 
 What the policy means: scripts, fonts and network connections are limited to the application's own origin, so an injected script from another host does not load and a script cannot send data to another host with `fetch`; the page cannot be framed; inline styles are allowed because the charting and styling libraries use them.
 
+On the [Render and Vercel deployment](deployment-render-vercel.md) the same headers are set by `frontend/vercel.json`, with one difference: `connect-src` also names the address of the Render service. The pages send one request there, without credentials and without reading the answer, because a sleeping service is started only by a request to its own address. A script on the page can therefore also send requests to that one address, which is the project's own API.
+
 The backend adds `Cache-Control: no-store` to every `/api` response, `X-Content-Type-Options: nosniff`, and `X-Request-ID`. The backend generates that id itself for every request and ignores any `X-Request-ID` a client sends.
 
 CORS is disabled unless `CORS_ORIGINS` lists explicit origins (needed only when the frontend runs on the Vite development server); credentials are never allowed in CORS mode because the token is not a cookie.

@@ -232,7 +232,8 @@ For a public demonstration at no cost the repository also contains a second depl
   one container (`deploy/render/`).
 - `frontend/vercel.json` deploys the React application on Vercel and forwards `/api/*` and the store
   below `/orbitcrate/` to Render. The store's own address is answered by a static start page that
-  waits while the Render service starts.
+  waits while the Render service starts, and `/wake` leads to the Render address itself, which is how
+  the pages start a sleeping service.
 
 The free plans have real limits: the backend sleeps after 15 idle minutes and needs about a minute to
 wake up (the pages say so and continue by themselves; an uptime monitor can keep it awake), monitoring

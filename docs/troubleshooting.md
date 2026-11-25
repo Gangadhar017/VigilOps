@@ -203,8 +203,9 @@ the service page of the hosting provider for a hosted instance; see
 
 **Cause.** Only on the free-hosting deployment. The store runs on the server that sleeps when idle. Its
 address is answered by a start page on the static host, which asks the store every three seconds
-whether it answers; "OrbitCrate is not answering yet" is the same wait on the server's own address,
-in the few seconds in which the API is up and the store is not.
+whether it answers and asks the server's own address so that it starts; "OrbitCrate is not answering
+yet" is the same wait on the server's own address, in the few seconds in which the API is up and the
+store is not.
 
 **Fix.** Wait; both pages open the store by themselves, usually within a minute. After four minutes
 the start page shows "The store is not answering" with "Try again": then check the service page of the
