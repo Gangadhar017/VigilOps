@@ -130,12 +130,24 @@ def test_only_the_store_api_accepts_posts_and_bodies_are_small(client, upstream)
     assert upstream.calls == []
 
 
-def test_an_unreachable_store_gives_a_plain_502(client, upstream):
+def test_an_unreachable_store_gives_a_page_that_asks_again_by_itself(client, upstream):
+    """After a start the API answers a few seconds before the store does."""
     upstream.fail = True
     page = client.get("/orbitcrate/", headers={"Accept": "text/html"})
-    assert page.status_code == 502 and "cannot be reached" in page.text
+    assert page.status_code == 502 and "not answering yet" in page.text
+    assert f'<meta http-equiv="refresh" content="{store.RETRY_SECONDS}">' in page.text
+    assert page.headers["retry-after"] == str(store.RETRY_SECONDS)
+    assert page.headers["cache-control"] == "no-store"
+    # No script and nothing loaded from elsewhere: the page works under any content policy.
+    assert "<script" not in page.text and "http://" not in page.text and "https://" not in page.text
+
     api = client.get("/orbitcrate/api/catalog")
     assert api.status_code == 502 and api.json() == {"detail": "The demonstration application is not reachable."}
+    assert api.headers["retry-after"] == str(store.RETRY_SECONDS)
+
+    # As soon as the store answers, the same address shows the store.
+    upstream.fail = False
+    assert client.get("/orbitcrate/", headers={"Accept": "text/html"}).status_code == 200
 
 
 def test_each_client_address_is_rate_limited(client, upstream, monkeypatch):

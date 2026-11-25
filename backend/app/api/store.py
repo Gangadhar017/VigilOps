@@ -39,14 +39,22 @@ _RESPONSE_HEADERS = (
 )
 requests_per_client = SlidingWindowLimiter(300, 60)
 
+# Shown when the store does not answer at all.  Where every component runs in one
+# container the API opens its port first, so for a few seconds after a start (or
+# while the store is being restarted) a visitor reaches the API but not the store.
+# The page asks again by itself instead of leaving the visitor with an error.
+RETRY_SECONDS = 5
 _UNAVAILABLE_PAGE = (
     '<!doctype html><html lang="en"><head><meta charset="utf-8">'
     '<meta name="viewport" content="width=device-width, initial-scale=1">'
-    "<title>OrbitCrate is unavailable</title></head>"
+    f'<meta http-equiv="refresh" content="{RETRY_SECONDS}">'
+    "<title>OrbitCrate is starting</title></head>"
     '<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0c1533;color:#f4f6fb;'
-    'font-family:system-ui,sans-serif;text-align:center;padding:24px">'
-    "<main><h1>OrbitCrate cannot be reached</h1>"
-    "<p>The demonstration application is not answering. Please try again in a moment.</p></main></body></html>"
+    'font-family:system-ui,-apple-system,Segoe UI,sans-serif;text-align:center;padding:24px">'
+    '<main style="max-width:34rem"><h1 style="font-size:28px;margin:0 0 10px">OrbitCrate is not answering yet</h1>'
+    '<p style="margin:0;color:#b7c2da;line-height:1.55">The demonstration application is starting or being restarted. '
+    f"This page asks again every {RETRY_SECONDS} seconds and shows the store as soon as it answers.</p>"
+    "</main></body></html>"
 )
 
 router = APIRouter(include_in_schema=False)
@@ -111,10 +119,11 @@ async def store(request: Request, path: str = "") -> Response:
         upstream = await fetch(request.method, path, headers, body)
     except httpx.HTTPError as exc:
         logger.warning("demonstration application not reachable", extra={"error": exc.__class__.__name__})
+        retry = {"Cache-Control": "no-store", "Retry-After": str(RETRY_SECONDS)}
         if wants_page:
-            return HTMLResponse(_UNAVAILABLE_PAGE, status_code=502, headers={"Cache-Control": "no-store"})
+            return HTMLResponse(_UNAVAILABLE_PAGE, status_code=502, headers=retry)
         return JSONResponse(
-            status_code=502, content={"detail": "The demonstration application is not reachable."}
+            status_code=502, content={"detail": "The demonstration application is not reachable."}, headers=retry
         )
 
     content = upstream.content
