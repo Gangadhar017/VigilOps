@@ -1,0 +1,43 @@
+Wake-up of the hosted deployment (Render free plan) after an idle period
+========================================================================
+
+Recorded on 2026-11-25 from 15:07:32 to 15:08:16 UTC, before the store's start page was deployed.
+No request had been sent to the service for 17 minutes; Render stops a free service after 15.
+Three requests were repeated every few seconds with a browser's Accept and User-Agent headers:
+the health address and the store's status address on the Render address, and the store's page
+through the Vercel address. "sent at" counts from the first request.
+
+ sent at  request                                  status    took  answered by
+--------  ---------------------------------------  ------  ------  -----------
+    0.2s  through Vercel  /orbitcrate/                503   1.20s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+    0.3s  Render directly  /api/health                503   0.65s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+    0.4s  Render directly  /api/health                503   1.31s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+    0.4s  Render directly  /orbitcrate/api/status     503   1.31s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+    0.4s  through Vercel  /orbitcrate/                502   1.15s  Render's own page "502 Bad Gateway" (routing: no-deploy)
+    5.9s  Render directly  /api/health                503   1.00s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+    5.9s  Render directly  /orbitcrate/api/status     503   0.31s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+    5.9s  through Vercel  /orbitcrate/                503   0.96s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   10.1s  Render directly  /api/health                503   0.77s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   10.1s  Render directly  /orbitcrate/api/status     503   0.29s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   10.1s  through Vercel  /orbitcrate/                503   0.77s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   14.2s  Render directly  /api/health                503   0.38s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   14.2s  Render directly  /orbitcrate/api/status     503   0.57s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   14.2s  through Vercel  /orbitcrate/                503   1.59s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   20.8s  Render directly  /api/health                503   0.50s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   20.8s  Render directly  /orbitcrate/api/status     503   0.53s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   20.8s  through Vercel  /orbitcrate/                503   0.72s  Render's own page "Application loading" (routing: hibernate-pending-wake)
+   25.4s  Render directly  /api/health                200   5.20s  the API: healthy
+   25.4s  Render directly  /orbitcrate/api/status     502   4.89s  the API: the store has not started yet
+   25.4s  through Vercel  /orbitcrate/                502   4.90s  the API: the store has not started yet
+   33.4s  Render directly  /api/health                200   0.37s  the API: healthy
+   33.4s  through Vercel  /orbitcrate/                502   0.45s  the API: the store has not started yet
+   33.5s  Render directly  /orbitcrate/api/status     502   0.28s  the API: the store has not started yet
+   36.8s  Render directly  /api/health                200   0.40s  the API: healthy
+   36.8s  through Vercel  /orbitcrate/                200   0.45s  the store's page
+   36.9s  Render directly  /orbitcrate/api/status     200   0.30s  the store: operational
+   40.2s  Render directly  /api/health                200   0.26s  the API: healthy
+   40.2s  through Vercel  /orbitcrate/                200   0.61s  the store's page
+   40.3s  Render directly  /orbitcrate/api/status     200   0.19s  the store: operational
+   43.6s  Render directly  /api/health                200   0.29s  the API: healthy
+   43.7s  Render directly  /orbitcrate/api/status     200   0.27s  the store: operational
+   43.7s  through Vercel  /orbitcrate/                200   0.44s  the store's page
