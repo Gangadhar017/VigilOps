@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" data-state="opening">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OrbitCrate</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0c1533">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230c1533'/%3E%3Cellipse cx='16' cy='16' rx='12' ry='4.8' transform='rotate(-24 16 16)' fill='none' stroke='%237d93ff' stroke-width='2'/%3E%3Crect x='11' y='11' width='10' height='10' rx='2.4' fill='%23ffb224'/%3E%3C/svg%3E">
+  <style>
+    /* Start page of the OrbitCrate store; see orbitcrate-start.js.  Self-contained:
+       the store's own files are on the server this page is waiting for. */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; min-height: 100vh; min-height: 100dvh;
+      display: grid; place-items: center; padding: 32px 20px;
+      background: #0c1533; color: #f4f6fb; overflow: hidden;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+    }
+    [hidden] { display: none !important; }
+    .art { position: fixed; inset: 0; width: 100%; height: 100%; color: #7d93ff; pointer-events: none; }
+    .panel {
+      position: relative; width: min(30rem, 100%);
+      /* Nothing for the first moment: when the server is awake the store replaces
+         this page before there is anything worth reading. */
+      animation: appear .35s ease-out .45s both;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; margin: 0 0 34px; font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+    .brand svg { width: 30px; height: 30px; flex: none; }
+    h1 { margin: 0; font-size: clamp(26px, 5.2vw, 34px); line-height: 1.16; font-weight: 700; letter-spacing: -.022em; }
+    .detail { margin: 14px 0 0; color: #b7c2da; max-width: 28rem; }
+    .bar { margin: 30px 0 0; height: 3px; border-radius: 3px; background: #263465; overflow: hidden; }
+    .bar span { display: block; width: 34%; height: 100%; border-radius: 3px; background: #ffb224; animation: travel 1.5s cubic-bezier(.45, 0, .55, 1) infinite; }
+    .elapsed { margin: 12px 0 0; color: #8f9cbd; font-size: 13.5px; letter-spacing: .01em; }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 26px 0 0; }
+    button {
+      font: inherit; font-weight: 600; color: #2b1d00; background: #ffb224;
+      border: 0; border-radius: 12px; padding: 11px 20px; cursor: pointer;
+    }
+    button:hover { background: #ffc044; }
+    a { color: #c8d1ff; text-underline-offset: 3px; }
+    a:hover { color: #ffffff; }
+    :focus-visible { outline: 3px solid #ffb224; outline-offset: 3px; border-radius: 6px; }
+    html[data-state="unreachable"] .bar { display: none; }
+    @keyframes appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes travel { from { transform: translateX(-110%); } to { transform: translateX(300%); } }
+    @media (prefers-reduced-motion: reduce) {
+      .panel { animation-duration: .01s; }
+      .bar span { animation: none; width: 100%; opacity: .55; }
+    }
+  </style>
+</head>
+<body>
+  <svg class="art" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-width="1.1" transform="rotate(-16 820 420)">
+      <ellipse cx="820" cy="420" rx="560" ry="210" opacity=".2"/>
+      <ellipse cx="820" cy="420" rx="420" ry="154" opacity=".15"/>
+      <ellipse cx="820" cy="420" rx="282" ry="100" opacity=".11"/>
+    </g>
+    <rect x="1010" y="138" width="20" height="20" rx="5" fill="#ffb224"/>
+    <rect x="356" y="664" width="13" height="13" rx="3.5" fill="#7d93ff"/>
+  </svg>
+
+  <main class="panel">
+    <p class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <g transform="rotate(-24 16 16)" fill="none" stroke="#7d93ff" stroke-width="2.2" stroke-linecap="round">
+          <path d="M2 16A14 5.4 0 0 1 30 16"/>
+          <rect x="9.5" y="9.5" width="13" height="13" rx="3.2" fill="#ffb224" stroke="none" transform="rotate(24 16 16)"/>
+          <path d="M2 16A14 5.4 0 0 0 30 16"/>
+        </g>
+      </svg>
+      <span>OrbitCrate</span>
+    </p>
+
+    <div role="status">
+      <h1 id="headline">Opening the store</h1>
+      <p class="detail" id="detail" hidden></p>
+    </div>
+    <div class="bar" aria-hidden="true"><span></span></div>
+    <p class="elapsed" id="elapsed" hidden></p>
+    <p class="actions" id="actions" hidden>
+      <button type="button" id="retry">Try again</button>
+      <a href="/welcome">About this demonstration</a>
+    </p>
+    <noscript>
+      <p class="detail">This page waits for the store with a script. <a href="/orbitcrate/open">Open the store directly</a>.</p>
+    </noscript>
+  </main>
+
+  <script src="/orbitcrate-start.js"></script>
+</body>
+</html>
