@@ -37,6 +37,13 @@
 		respond "ok" 200
 	}
 
+	# The pages ask this address when the API does not answer.  On a static host in
+	# front of a server that sleeps when idle it leads to that server and starts it
+	# (frontend/vercel.json); here nothing sleeps, so there is nothing to do.
+	handle /wake {
+		respond 204
+	}
+
 	handle /api/* {
 		reverse_proxy backend:8000
 	}
