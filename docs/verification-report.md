@@ -1,6 +1,6 @@
 # Verification Report
 
-**Date:** 2026-11-23, with section 10 added on 2026-11-25 **Build:** branch `main` of `github.com/Gangadhar017/VigilOps` (upgraded from CloudShield `a433fc7`)
+**Date:** 2026-11-23, with sections 10 and 11 added on 2026-11-25 **Build:** branch `main` of `github.com/Gangadhar017/VigilOps` (upgraded from CloudShield `a433fc7`)
 **Environment:** Windows 11 Home, Docker Desktop 29.5.3 (WSL2), 8 CPUs / 7.6 GiB for Docker
 
 This report records what was actually run and what happened. Anything that was not run is marked
@@ -15,7 +15,7 @@ This report records what was actually run and what happened. Anything that was n
 | Backend tests, PostgreSQL 16 | `TEST_DATABASE_URL=postgresql://… pytest` | **249 passed**, 1 skipped (symlink test on Windows), run locally before the nine hosted-profile tests of section 8 were added; with them the suite passes in the PostgreSQL job of CI run 45181978988 |
 | Backend lint | `ruff check app tests alembic` | clean |
 | Demonstration application tests | `python -m pytest test-app/tests -q` | **26 passed** (section 10) |
-| Frontend tests | `cd frontend && npm test` | **32 passed** (24 before section 10) |
+| Frontend tests | `cd frontend && npm test` | **41 passed** (24 before section 10, 32 before section 11) |
 | Frontend production build | `npm run build` | succeeded |
 | Stack health and exposure | `sh scripts/verify_stack.sh` | **25 of 25** checks passed (20 of 20 before the five checks of section 10 were added) |
 | End-to-end demonstrations 1–3 (API level, fresh installation) | `python scripts/run_e2e_demos.py` | **55 of 55** checks passed; 0 error-level log lines in backend and worker |
@@ -345,3 +345,77 @@ Still not verified in this section:
   section 8.
 * **The video on another machine.** The recording was made and inspected on this host only. WebM plays in
   Chromium-based browsers and in VLC; it was not converted to MP4.
+
+## 11. The sleeping host: what a visitor sees while the server starts
+
+On 2026-11-25 the owner reported that the hosted deployment showed error pages after it had been left
+alone for some hours: Render's "502 Bad Gateway" page at the store's address, and "The server is
+starting" on the sign-in page and the product page.
+
+### What was observed on the live deployment
+
+The service was left without any request for 17 minutes and then asked every few seconds. Every answer
+is in [`evidence/hosted-wake-up.txt`](evidence/hosted-wake-up.txt).
+
+| Seconds after the first request | Who answered | What a visitor got |
+|---|---|---|
+| 0 to about 25 | Render, in place of the stopped service | HTTP 503 with Render's page "Application loading" (16 of the 17 answers), and once, for one of the first requests, HTTP 502 with Render's page "Bad Gateway". The second is the page the owner had seen |
+| about 30 | The API | `/api/health` answered `{"status":"healthy"}`. The store's address answered HTTP 502 from the API, because the container starts the store after the API |
+| about 37 | The store | The store's page and its status address answered HTTP 200 |
+
+The same was seen an hour earlier with a plain client that sends no browser headers: its first request
+was held for 23.6 s and then answered normally, the store answered 502 for a few seconds more, and
+everything answered about 40 s after the first request. The last deployment had been 15 hours before,
+so neither observation was a deployment.
+
+Conclusion: nothing had failed. Render stops a free web service after 15 minutes without a request from
+outside, and the next visit starts it again, which took 37 to 40 seconds here. The sign-in page and the
+product page already said so and continued by themselves. The store's address did not: Vercel forwarded
+it to Render, and the visitor saw whatever Render answered in the meantime.
+
+Not established: whether the service is also restarted at other times (out of memory, or by Render).
+That is shown only by the service's event log in the Render Dashboard, which was not available for this
+check.
+
+### What was changed
+
+- **A start page for the store.** Vercel now answers the store's address `/orbitcrate/` itself with a
+  static page (`frontend/public/orbitcrate-start.html`, `orbitcrate-start.js`). It asks the store's
+  status address every three seconds, says "Starting the demonstration server" while there is no answer
+  from the store, and opens the store at `/orbitcrate/open` as soon as there is one. The store then shows
+  its own address again (`test-app/static/app.js`). Rules: `frontend/vercel.json`.
+- **A page that asks again by itself on the API.** For the seconds in which the API is up and the store
+  is not, the pass-through answers HTTP 502 with a page that reloads every 5 seconds, and sends
+  `Retry-After` (`backend/app/api/store.py`).
+- **`HEAD` on the two public health addresses** (`/health/live`, `/api/health`). They answered HTTP 405,
+  which an uptime monitor that sends `HEAD` reports as "down". Such a monitor is what keeps a free
+  service awake; see "Keeping the service awake" in
+  [`deployment-render-vercel.md`](deployment-render-vercel.md#keeping-the-service-awake).
+
+### Checks
+
+| Check | Result |
+|---|---|
+| Backend tests, SQLite | **280 passed**, 5 skipped. The store test now also covers the reloading page and `Retry-After`; the hosted-profile test covers `HEAD` |
+| Backend and demonstration application lint | clean |
+| Demonstration application tests | **26 passed** |
+| Frontend tests | **41 passed**: 9 new ones for the start page (it opens the store at once, waits through the platform's error page, treats the store's own outage answer as an answer, does not mistake the API's "not reachable" for the store, gives up after four minutes, tries again on request) and for the three hosting rules |
+| Frontend production build | succeeded; `dist/` contains the two files of the start page |
+| The start page in Chromium, behind a stand-in for the static host that applies `frontend/vercel.json` to `frontend/dist` (files first, then the rewrites in order, the configured headers on every answer) and answers with a 502 page while nothing runs behind it. The API was started later, and the store later still | **22 of 22** checks, in each of two runs (the rules matched with an optional trailing slash, and strictly) |
+| ... with nothing running: the store's address | the start page with "Starting the demonstration server" and a count of the wait, never the 502 page; no horizontal overflow at phone width; after the time limit "The store is not answering" with "Try again" |
+| ... with the API running and the store not | the start page kept waiting; the store's address on the API showed "OrbitCrate is not answering yet" |
+| ... after the store was started | both pages turned into the store without being touched (the start page 1.4 s after the store's process was started); the address was `/orbitcrate/` again; "Back" led to the page before, not to the start page |
+| ... with everything running | `/orbitcrate/`, `/orbitcrate` and `/orbitcrate/?ref=console#configure` showed the store within 107 to 122 ms and kept the query and the anchor; an order was placed |
+| ... with the `outage` fault injected | the store's own outage page was shown, not the start page; after the fault was cleared a reload showed the store |
+| ... the browser's console | no script error and no content-policy violation under the headers of `frontend/vercel.json` |
+| The store on its own address, without a proxy | `/`, `/#plans` and `/?ref=x#orders` kept their address; no browser error |
+| The Compose stack rebuilt with these changes: `sh scripts/verify_stack.sh` | **25 of 25** once every container reported healthy. A run started in the first seconds after the restart reported one failed check; its output was cut, so which one is not known |
+| The Compose stack rebuilt with these changes: `cd tests/e2e && npx playwright test` | **16 passed** |
+
+Not verified in this section:
+
+* **Vercel's handling of the new rules.** The stand-in follows Vercel's documented order (existing files,
+  then the rewrites in the order written). Until the rules have been deployed and the store's address has
+  been opened once against a sleeping service, the behaviour on Vercel itself is UNVERIFIED.
+* **An uptime monitor.** None is set up by this repository. Whether one keeps this service awake, and
+  whether the 750 free instance hours of the Render workspace are enough for it, was not tried.
