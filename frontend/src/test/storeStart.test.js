@@ -24,12 +24,16 @@ const headline = () => document.getElementById('headline').textContent;
 
 describe('start page of the store', () => {
   let location;
+  let status; // the answers of the store's status address
+  const woken = () => fetch.mock.calls.filter(([address]) => address === '/wake');
 
   beforeEach(() => {
     vi.useFakeTimers();
     location = { replace: vi.fn(), search: '', hash: '' };
     vi.stubGlobal('location', location);
-    vi.stubGlobal('fetch', vi.fn());
+    status = vi.fn();
+    // The request to the server's own address gets an answer that cannot be read.
+    vi.stubGlobal('fetch', vi.fn((address) => (address === '/wake' ? Promise.resolve({ type: 'opaque' }) : status(address))));
   });
 
   afterEach(() => {
@@ -41,19 +45,20 @@ describe('start page of the store', () => {
   it('opens the store at once when it answers, keeping the query and the anchor', async () => {
     location.search = '?ref=console';
     location.hash = '#plans';
-    fetch.mockResolvedValue(answer({ status: 'operational', product: 'OrbitCrate' }));
+    status.mockResolvedValue(answer({ status: 'operational', product: 'OrbitCrate' }));
     openPage();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch.mock.calls[0][0]).toBe('/orbitcrate/api/status');
+    expect(status).toHaveBeenCalledTimes(1);
+    expect(status).toHaveBeenCalledWith('/orbitcrate/api/status');
+    expect(woken()).toHaveLength(0); // an awake server is not asked a second time
     expect(location.replace).toHaveBeenCalledWith('/orbitcrate/open?ref=console#plans');
     expect(headline()).toBe('Opening the store');
     expect(document.getElementById('detail').hidden).toBe(true);
   });
 
   it('says that the server is starting while the platform answers with its error page, then opens', async () => {
-    fetch
+    status
       .mockResolvedValueOnce(errorPage()) // the hosting platform's "Bad Gateway" page
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockResolvedValue(answer({ status: 'operational' }));
@@ -67,39 +72,63 @@ describe('start page of the store', () => {
     expect(document.getElementById('actions').hidden).toBe(true);
 
     await vi.advanceTimersByTimeAsync(6500);
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(status).toHaveBeenCalledTimes(3);
     expect(location.replace).toHaveBeenCalledTimes(1);
     expect(location.replace).toHaveBeenCalledWith('/orbitcrate/open');
   });
 
   it('says so when a single answer takes long, without waiting for it to fail', async () => {
-    fetch.mockReturnValue(new Promise(() => {})); // a waking server holds the request
+    status.mockReturnValue(new Promise(() => {})); // a waking server holds the request
     openPage();
     await vi.advanceTimersByTimeAsync(1000);
     expect(headline()).toBe('Opening the store');
     await vi.advanceTimersByTimeAsync(1000);
     expect(headline()).toBe('Starting the demonstration server');
     expect(document.getElementById('elapsed').textContent).toBe('Waiting for 0:02');
+    expect(woken()).toHaveLength(1); // and asks the server itself meanwhile
+  });
+
+  it('asks the server on its own address while the store does not answer', async () => {
+    // Requests through the static host did not start the sleeping server; one to its own address does.
+    status.mockResolvedValue(errorPage());
+    openPage();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(woken()).toHaveLength(1);
+    expect(woken()[0][1]).toEqual({ mode: 'no-cors', cache: 'no-store' });
+    await vi.advanceTimersByTimeAsync(18000);
+    expect(status.mock.calls.length).toBeGreaterThan(5);
+    expect(woken()).toHaveLength(1); // not with every question
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(woken()).toHaveLength(2); // but again after 20 seconds, in case the first one was lost
+  });
+
+  it('keeps waiting when the request to the server itself fails', async () => {
+    fetch.mockImplementation((address) => (address === '/wake' ? Promise.reject(new TypeError('Failed to fetch')) : status(address)));
+    status.mockResolvedValueOnce(errorPage()).mockResolvedValue(answer({ status: 'operational' }));
+    openPage();
+    await vi.advanceTimersByTimeAsync(3500);
+    expect(location.replace).toHaveBeenCalledWith('/orbitcrate/open');
   });
 
   it('opens the store when the store itself reports an outage: that is the store answering', async () => {
-    fetch.mockResolvedValue(answer({ status: 'unavailable', detail: 'Service component is not running.' }));
+    status.mockResolvedValue(answer({ status: 'unavailable', detail: 'Service component is not running.' }));
     openPage();
     await vi.advanceTimersByTimeAsync(0);
     expect(location.replace).toHaveBeenCalledWith('/orbitcrate/open');
   });
 
   it('keeps waiting while only the API answers that the store is not reachable', async () => {
-    fetch.mockResolvedValue(answer({ detail: 'The demonstration application is not reachable.' }));
+    status.mockResolvedValue(answer({ detail: 'The demonstration application is not reachable.' }));
     openPage();
     await vi.advanceTimersByTimeAsync(20000);
     expect(location.replace).not.toHaveBeenCalled();
-    expect(fetch.mock.calls.length).toBeGreaterThan(3);
+    expect(status.mock.calls.length).toBeGreaterThan(3);
     expect(headline()).toBe('Starting the demonstration server');
   });
 
   it('gives up after four minutes and starts again on request', async () => {
-    fetch.mockResolvedValue(errorPage());
+    status.mockResolvedValue(errorPage());
     openPage();
     await vi.advanceTimersByTimeAsync(239000);
     expect(headline()).toBe('Starting the demonstration server');
@@ -111,9 +140,9 @@ describe('start page of the store', () => {
     expect(document.getElementById('elapsed').hidden).toBe(true);
     const asked = fetch.mock.calls.length;
     await vi.advanceTimersByTimeAsync(30000);
-    expect(fetch.mock.calls.length).toBe(asked); // it has stopped asking
+    expect(fetch.mock.calls.length).toBe(asked); // it has stopped asking, the server included
 
-    fetch.mockResolvedValue(answer({ status: 'operational' }));
+    status.mockResolvedValue(answer({ status: 'operational' }));
     document.getElementById('retry').click();
     await vi.advanceTimersByTimeAsync(0);
     expect(location.replace).toHaveBeenCalledWith('/orbitcrate/open');
@@ -149,5 +178,20 @@ describe('hosting rules for the store', () => {
     expect(PAGE).not.toMatch(/\son[a-z]+=/); // no inline event handlers either
     // Nothing is loaded from the server the page is waiting for.
     expect(PAGE).not.toMatch(/(?:href|src)="(?:\/orbitcrate\/(?!open")|static\/)/);
+  });
+
+  it('redirect the wake address to the server itself, and the content policy allows that request', () => {
+    const wake = HOSTING.redirects.find((rule) => rule.source === '/wake');
+    expect(wake.permanent).toBe(false);
+    const target = new URL(wake.destination);
+    expect(target.pathname).toBe('/health/live');
+    // The same server that the forwarding rules lead to.
+    expect(target.origin).toBe(new URL(rules[forwarded].destination).origin);
+    expect(target.origin).toBe(new URL(rules[position('/api/:path*')].destination).origin);
+
+    const policy = HOSTING.headers[0].headers.find((header) => header.key === 'Content-Security-Policy').value;
+    const connect = policy.split(';').map((part) => part.trim()).find((part) => part.startsWith('connect-src'));
+    expect(connect.split(/\s+/)).toEqual(['connect-src', "'self'", target.origin]);
+    expect(SCRIPT).toContain("WAKE_URL = '/wake'");
   });
 });

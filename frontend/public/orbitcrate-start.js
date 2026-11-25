@@ -14,8 +14,10 @@
 
   var STATUS_URL = '/orbitcrate/api/status';
   var STORE_URL = '/orbitcrate/open';
+  var WAKE_URL = '/wake'; // the static host redirects this to the server's own address
   var SLOW_AFTER_MS = 1500; // say "starting" only if the first answer takes longer
   var RETRY_EVERY_MS = 3000;
+  var WAKE_EVERY_MS = 20000;
   var REQUEST_TIMEOUT_MS = 40000; // a waking server may hold the request for a while
   var GIVE_UP_AFTER_MS = 240000;
 
@@ -47,6 +49,7 @@
   var run = 0;
   var startedAt = 0;
   var clock = null;
+  var lastWake = 0;
 
   function show(state) {
     page.setAttribute('data-state', state);
@@ -90,6 +93,25 @@
       });
   }
 
+  /*
+   * A sleeping server is started by a request to its own address.  The status
+   * requests above reach it through the static host, and those did not start
+   * it when this was measured: for four minutes the hosting platform answered
+   * each of them with its error page (docs/verification-report.md, section 11).
+   * So while the store does not answer, the browser also asks the server
+   * directly, through an address that the static host redirects there.  The
+   * answer cannot be read from this page and is not needed.
+   */
+  function wake() {
+    if (Date.now() - lastWake < WAKE_EVERY_MS) return;
+    lastWake = Date.now();
+    try {
+      fetch(WAKE_URL, { mode: 'no-cors', cache: 'no-store' }).catch(function () {});
+    } catch (error) {
+      /* the wait goes on without it */
+    }
+  }
+
   function stopClock() {
     if (clock) clearInterval(clock);
     clock = null;
@@ -98,12 +120,15 @@
   async function open() {
     var mine = ++run; // a later run (Try again, return from history) replaces this one
     startedAt = Date.now();
+    lastWake = 0;
     stopClock();
     show('opening');
     tick();
     clock = setInterval(tick, 1000);
     var slow = setTimeout(function () {
-      if (mine === run && page.getAttribute('data-state') === 'opening') show('starting');
+      if (mine !== run || page.getAttribute('data-state') !== 'opening') return;
+      show('starting');
+      wake();
     }, SLOW_AFTER_MS);
 
     for (;;) {
@@ -123,6 +148,7 @@
         return;
       }
       show('starting');
+      wake();
       await wait(RETRY_EVERY_MS);
       if (mine !== run) return;
     }
