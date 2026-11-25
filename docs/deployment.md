@@ -249,6 +249,7 @@ Services reach each other by name on the private bridge network `internal`.
 |---|---|
 | `/api/*` | The backend |
 | `/healthz` | Answered by Caddy itself with `ok` |
+| `/wake` | Answered by Caddy itself with HTTP 204. The pages request it when the API does not answer; it has a purpose only on the [free-hosting deployment](deployment-render-vercel.md#while-the-service-is-starting), where it starts a sleeping server |
 | Everything else | The web application (static files, with `index.html` as fallback) |
 
 The backend's `/metrics`, `/docs`, `/openapi.json` and `/health/*` endpoints are outside `/api` and are

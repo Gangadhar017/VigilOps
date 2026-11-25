@@ -49,7 +49,7 @@ the frontend runs in a single web service:
 | [`render.yaml`](../render.yaml) | Render Blueprint: the web service, the database and every setting |
 | [`deploy/render/Dockerfile`](../deploy/render/Dockerfile) | The single-container image |
 | [`deploy/render/launcher.py`](../deploy/render/launcher.py) | Starts and supervises the five processes inside it |
-| [`frontend/vercel.json`](../frontend/vercel.json) | Vercel build settings, the `/api` and `/orbitcrate` rewrites, the rule that serves the store's start page, and the security headers |
+| [`frontend/vercel.json`](../frontend/vercel.json) | Vercel build settings, the `/api` and `/orbitcrate` rewrites, the rule that serves the store's start page, the `/wake` redirect through which a page starts the sleeping service, and the security headers |
 | [`frontend/public/orbitcrate-start.html`](../frontend/public/orbitcrate-start.html), [`orbitcrate-start.js`](../frontend/public/orbitcrate-start.js) | The store's start page: what a visitor sees at `/orbitcrate/` while the Render service is still starting |
 
 Inside the container the components are still separated as far as one container allows:
@@ -80,6 +80,7 @@ with `127.0.0.1`.
 | Fact (from the providers' documentation, read on 2026-11-23) | Consequence |
 |---|---|
 | A free Render web service is stopped after 15 minutes without incoming requests and takes about a minute to start again. Requests made inside the container (the synthetic load, the Prometheus scrapes) do not count | The first visit after a pause is slow. The product page and the sign-in page say that the server is starting, the store's address shows a start page, and all three continue by themselves (see "While the service is starting"). To avoid the pause altogether, see "Keeping the service awake" |
+| Measured on 2026-11-25, not stated in the documentation: a sleeping service is not started by a request that Vercel forwards to it. Render answers such a request with its "502 Bad Gateway" page. A request to the Render address itself starts the service | While they wait, the pages also send one request straight to the Render address (the `/wake` address, see "While the service is starting"). Without it a visitor would wait until somebody else asked the Render address |
 | When it stops, its files are lost | Prometheus history, the Alertmanager state, an injected fault and any change to the sample configuration are gone after a pause. Incidents, findings, remediation requests, users and the audit trail are in PostgreSQL and stay |
 | A free Render PostgreSQL database expires 30 days after it was created; 14 days later it is deleted. Only one free database per workspace | Plan the demonstration inside those 30 days, or see "When the database expires". If your Render workspace already has a free database, the Blueprint cannot create a second one |
 | A free web service has 0.1 CPU and 512 MB | Sign-in takes several seconds (password hashing). The `cpu` and `memory` faults are switched off because the whole container would stall or be killed; `outage`, `errors` and `latency` work |
@@ -122,16 +123,19 @@ region cannot be changed after creation, so edit `render.yaml` first if you want
 
 ### 2. Frontend on Vercel
 
-1. If the Render address is not `https://vigilops.onrender.com`, change the `destination` of the three
-   rewrites in `frontend/vercel.json` that point to it (`/api/:path*`, `/orbitcrate/open` and
-   `/orbitcrate/:path(.*)`) to your address and push the change.
+1. If the Render address is not `https://vigilops.onrender.com`, replace it everywhere in
+   `frontend/vercel.json` and push the change. It occurs five times: in the `destination` of the three
+   rewrites that point to it (`/api/:path*`, `/orbitcrate/open` and `/orbitcrate/:path(.*)`), in the
+   `destination` of the `/wake` redirect, and in `connect-src` of the `Content-Security-Policy` header.
 2. In Vercel choose **Add New**, **Project**, and import the `VigilOps` repository.
 3. Set **Root Directory** to `frontend`. The other settings come from `frontend/vercel.json` (build
    command `npm run build`, output directory `dist`). No environment variables are needed.
 4. Deploy. Open the address Vercel shows and sign in with `admin@vigilops.local` and the password you chose.
 
-The browser talks only to the Vercel address; Vercel forwards `/api/*` and `/orbitcrate/*` to Render. The
-frontend therefore needs no backend address at build time and the backend needs no CORS setting.
+The browser reads only from the Vercel address; Vercel forwards `/api/*` and `/orbitcrate/*` to Render.
+The frontend therefore needs no backend address at build time and the backend needs no CORS setting.
+One request goes to the Render address directly: the one that starts a sleeping service (see "While
+the service is starting"). Its answer is not read.
 
 One address below `/orbitcrate/` is not forwarded: the store's own address, `/orbitcrate/` (with or
 without the trailing slash). Vercel answers it itself with the store's start page; the next section says
@@ -175,6 +179,20 @@ Render's page, a gateway error or no answer at all means "not up yet". After fou
 asking and offers "Try again". When the service is awake the start page costs one short extra request
 and is replaced by the store before it has shown anything.
 
+**What starts the service.** A request to the Render address itself. A request that Vercel forwards did
+not: in two recordings on 2026-11-25 Render answered all 97 such requests with its "502 Bad Gateway"
+page while the service stayed asleep, for four minutes in one of them. The first request to the Render
+address started it, and the store answered 31 seconds later
+([recordings](evidence/hosted-wake-up-through-vercel.txt)). The pages therefore do both. While the API or
+the store does not answer they keep asking through Vercel, and at most every 20 seconds they also
+request `/wake`. Vercel redirects that address to `https://<service>.onrender.com/health/live`, so the
+browser asks the Render address directly. The answer cannot be read from a page on the Vercel address
+and is not needed. The `Content-Security-Policy` header names the Render address in `connect-src` for
+this one request; everything else stays limited to the Vercel address. The store's start page sends it
+from [`orbitcrate-start.js`](../frontend/public/orbitcrate-start.js), the console from
+[`frontend/src/api/wake.js`](../frontend/src/api/wake.js) whenever one of its requests gets no answer
+from the API itself.
+
 Inside the container the API opens the public port first and the store starts a few seconds later. In
 that time the store's address on the Render address itself (`https://<service>.onrender.com/orbitcrate/`)
 answers HTTP 502 with a page that asks again every 5 seconds and turns into the store by itself.
@@ -191,7 +209,7 @@ running. Any free uptime monitor does this. It is not part of this repository; t
 | Setting of the monitor | Value |
 |---|---|
 | Type | HTTP(S) |
-| Address | `https://<service>.onrender.com/api/health` (the Render address, so that Vercel's allowance is not used) |
+| Address | `https://<service>.onrender.com/api/health` (the Render address itself: a request to it is what was seen to start the service, and Vercel's allowance is not used) |
 | Interval | 5 minutes |
 | Expected answer | HTTP 200. The address answers GET with `{"status":"healthy"}` and HEAD with the same status and no body |
 
@@ -249,6 +267,7 @@ Use it to show the project. Do not point it at a real workload.
 | The deploy fails and the log says a `BOOTSTRAP_..._PASSWORD` does not meet the password policy | Change the value under Environment (10 or more characters, upper case, lower case, a digit) and deploy again |
 | The Blueprint cannot create the database | The workspace already has a free database. Delete the old one, or remove the `databases` block from `render.yaml` and set `DATABASE_URL` yourself |
 | The site shows "The server is starting", or the store shows "Starting the demonstration server", for about a minute | The service was asleep. This is expected on the free plan; see "Keeping the service awake" to avoid it |
+| The pages keep waiting, and the service starts only after the Render address was opened by hand | The request that starts it does not arrive. Open `https://<your-app>.vercel.app/wake`: it must lead to `{"status":"alive"}` on the Render address. If it does not, the `/wake` redirect in `frontend/vercel.json` does not point to your Render address. If it does, compare the address in `connect-src` of the `Content-Security-Policy` header in the same file |
 | Render's "502 Bad Gateway" page appears at `/orbitcrate/open` | That address was opened or reloaded directly while the service was down. Open `/orbitcrate/` instead: it waits and opens the store |
 | "The server is not answering" after three minutes | Open the service in the Render Dashboard: is it Live, did the last deploy fail, has the month's free hours run out? |
 | Sign-in works on the Render address but the Vercel site cannot reach the API | The `destination` in `frontend/vercel.json` does not match the Render address, or Root Directory is not `frontend` |
