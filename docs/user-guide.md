@@ -37,6 +37,9 @@ Two pages need no account.
   browser. The "Store pulse" panel shows the response time of every request the page makes, in green,
   amber (slow) or red (failed), so a fault injected from the demo controls is visible in the store.
   **Open application** on the Overview and **Open the monitored application** on Monitoring lead there.
+  On the free-hosting deployment the store's address first shows a start page for a moment. If the
+  server was asleep it says "Starting the demonstration server", counts the wait and opens the store
+  by itself.
 
 ## Signing in and the layout
 

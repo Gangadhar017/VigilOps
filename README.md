@@ -230,10 +230,13 @@ For a public demonstration at no cost the repository also contains a second depl
   plan has no background workers, private networking or disks, so the API, the worker, the
   demonstration application, Prometheus and Alertmanager run as separate processes and users inside
   one container (`deploy/render/`).
-- `frontend/vercel.json` deploys the React application on Vercel and forwards `/api/*` to Render.
+- `frontend/vercel.json` deploys the React application on Vercel and forwards `/api/*` and the store
+  below `/orbitcrate/` to Render. The store's own address is answered by a static start page that
+  waits while the Render service starts.
 
 The free plans have real limits: the backend sleeps after 15 idle minutes and needs about a minute to
-wake up, monitoring history is lost when it does, the `cpu` and `memory` faults are switched off, and
+wake up (the pages say so and continue by themselves; an uptime monitor can keep it awake), monitoring
+history is lost when it does, the `cpu` and `memory` faults are switched off, and
 the free database expires after 30 days. Steps, limits and the differences from the Compose stack:
 [docs/deployment-render-vercel.md](docs/deployment-render-vercel.md).
 

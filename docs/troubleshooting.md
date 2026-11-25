@@ -199,6 +199,18 @@ not answering, check that the backend is running (`docker compose ps backend` fo
 the service page of the hosting provider for a hosted instance; see
 [deployment-render-vercel.md](deployment-render-vercel.md#troubleshooting)) and choose "Check again".
 
+### The store shows "Starting the demonstration server" or "OrbitCrate is not answering yet"
+
+**Cause.** Only on the free-hosting deployment. The store runs on the server that sleeps when idle. Its
+address is answered by a start page on the static host, which asks the store every three seconds
+whether it answers; "OrbitCrate is not answering yet" is the same wait on the server's own address,
+in the few seconds in which the API is up and the store is not.
+
+**Fix.** Wait; both pages open the store by themselves, usually within a minute. After four minutes
+the start page shows "The store is not answering" with "Try again": then check the service page of the
+hosting provider. To avoid the wait, see
+[Keeping the service awake](deployment-render-vercel.md#keeping-the-service-awake).
+
 ### "Incorrect e-mail or password."
 
 **Cause.** The same message is shown for a wrong password, an unknown e-mail and a deactivated

@@ -180,9 +180,9 @@ Defined in `backend/app/main.py`. None of these requires authentication.
 
 | Method and path | Routed by Caddy | Purpose |
 |---|---|---|
-| `GET /health/live` | no | Liveness: the process is running. Does not check dependencies |
+| `GET /health/live` | no | Liveness: the process is running. Does not check dependencies. Also answers `HEAD` |
 | `GET /health/ready` | no | Readiness: the database is reachable and the migrations are applied. HTTP 503 otherwise |
-| `GET /api/health` | yes | Combined summary for people and uptime checks. HTTP 503 when not ready |
+| `GET /api/health` | yes | Combined summary for people and uptime checks. HTTP 503 when not ready. Also answers `HEAD`, which some uptime monitors send |
 | `GET /api/version` | yes | Project title, version and environment |
 | `GET /metrics` | no | Prometheus exposition format, scraped by Prometheus over the internal network |
 

@@ -316,7 +316,8 @@ The same sequence runs unattended with `python scripts/run_failed_remediation_de
 | VigilAI answers "You are sending messages too quickly" | Per-user rate limit | Wait for the stated number of seconds. |
 | Sign-in answers "Too many sign-in attempts" | Failed attempts were rate limited | Wait for the stated time; use the correct password from `.env`. |
 | A page shows old data | Polling pauses while a tab is hidden | Press "Refresh" on the page. |
-| The store tab shows "cannot be reached" or an error page | Is `test-app` running (`docker compose ps test-app`)? Is an outage fault active? | Start the container, or clear the fault; reload the tab. |
+| The store tab shows an error page | Is `test-app` running (`docker compose ps test-app`)? Is an outage fault active? | Start the container, or clear the fault; reload the tab. |
+| On the hosted deployment the store tab shows "Starting the demonstration server" | The Render service was asleep and is starting | Wait; the page opens the store by itself, usually within a minute. Open the site a few minutes before the demonstration. |
 | The live demonstration cannot continue | - | Play the recorded walkthrough `recordings/vigilops-demo.webm` (preparation item 11), run the non-interactive demonstrations (below) in the terminal, or present the recorded evidence in [`../verification-report.md`](../verification-report.md). |
 
 ## Resetting between runs
