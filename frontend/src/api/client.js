@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { apiIsNotUp, wakeServer } from './wake';
 
 // The access token lives in sessionStorage: it disappears when the tab closes,
 // and it is never written to a cookie (so there is no CSRF surface).
@@ -52,6 +53,8 @@ api.interceptors.response.use(
       tokenStore.clear();
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     }
+    // The API is not up (a sleeping host): ask its own address so that it starts.
+    if (apiIsNotUp(error)) wakeServer();
     return Promise.reject(error);
   },
 );
