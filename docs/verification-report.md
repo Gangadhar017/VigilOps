@@ -15,7 +15,7 @@ This report records what was actually run and what happened. Anything that was n
 | Backend tests, PostgreSQL 16 | `TEST_DATABASE_URL=postgresql://… pytest` | **249 passed**, 1 skipped (symlink test on Windows), run locally before the nine hosted-profile tests of section 8 were added; with them the suite passes in the PostgreSQL job of CI run 45181978988 |
 | Backend lint | `ruff check app tests alembic` | clean |
 | Demonstration application tests | `python -m pytest test-app/tests -q` | **26 passed** (section 10) |
-| Frontend tests | `cd frontend && npm test` | **41 passed** (24 before section 10, 32 before section 11) |
+| Frontend tests | `cd frontend && npm test` | **50 passed** (24 before section 10, 32 before section 11) |
 | Frontend production build | `npm run build` | succeeded |
 | Stack health and exposure | `sh scripts/verify_stack.sh` | **25 of 25** checks passed (20 of 20 before the five checks of section 10 were added) |
 | End-to-end demonstrations 1–3 (API level, fresh installation) | `python scripts/run_e2e_demos.py` | **55 of 55** checks passed; 0 error-level log lines in backend and worker |
@@ -369,15 +369,21 @@ everything answered about 40 s after the first request. The last deployment had 
 so neither observation was a deployment.
 
 Conclusion: nothing had failed. Render stops a free web service after 15 minutes without a request from
-outside, and the next visit starts it again, which took 37 to 40 seconds here. The sign-in page and the
-product page already said so and continued by themselves. The store's address did not: Vercel forwarded
-it to Render, and the visitor saw whatever Render answered in the meantime.
+outside, and a request to its own address starts it again, which took 37 to 40 seconds here. The sign-in
+page and the product page said that the server was starting. The store's address did not: Vercel
+forwarded it to Render, and the visitor saw whatever Render answered in the meantime.
+
+In both observations the Render address itself was asked as well, at the same moment as the Vercel
+address. That turned out to matter. The recordings made after the push (below) show that a visit through
+the Vercel address alone did not start the service. An earlier version of this section said that the
+sign-in page and the product page "continued by themselves"; that was not supported by what had been
+observed, and it is corrected here.
 
 Not established: whether the service is also restarted at other times (out of memory, or by Render).
 That is shown only by the service's event log in the Render Dashboard, which was not available for this
 check.
 
-### What was changed
+### What was changed first
 
 - **A start page for the store.** Vercel now answers the store's address `/orbitcrate/` itself with a
   static page (`frontend/public/orbitcrate-start.html`, `orbitcrate-start.js`). It asks the store's
@@ -392,7 +398,7 @@ check.
   service awake; see "Keeping the service awake" in
   [`deployment-render-vercel.md`](deployment-render-vercel.md#keeping-the-service-awake).
 
-### Checks
+### Checks of the first change, before the push
 
 | Check | Result |
 |---|---|
@@ -412,10 +418,83 @@ check.
 | The Compose stack rebuilt with these changes: `sh scripts/verify_stack.sh` | **25 of 25** once every container reported healthy. A run started in the first seconds after the restart reported one failed check; its output was cut, so which one is not known |
 | The Compose stack rebuilt with these changes: `cd tests/e2e && npx playwright test` | **16 passed** |
 
+The stand-in in these checks answered with a 502 page for as long as nothing ran behind it, and passed
+the requests on once something did. It did not reproduce what the live deployment then showed: that the
+service behind it is not started by the forwarded requests at all.
+
+### After the push: the start page on the live deployment
+
+The ten commits were pushed to `main` on 2026-11-25 at 16:39 UTC (`c316802..e43dd9d`).
+
+| Check | Result |
+|---|---|
+| GitHub Actions run 45656296655 (run 13, commit `e43dd9d`) | **6 of 6 jobs succeeded** in 7 min 44 s |
+| Both hosts serve the new version | about a minute after the push: Vercel answered `/orbitcrate-start.js`, and the store's script on the Render address contained the new handling of the address |
+| `/orbitcrate`, `/orbitcrate/` and `/orbitcrate/?ref=x` on the Vercel address | HTTP 200 from Vercel with the start page, under the configured content policy |
+| `/orbitcrate/open`, `/orbitcrate/api/status` and `/orbitcrate/static/app.js` on the Vercel address | forwarded to Render: the store's page, `{"status":"operational"}`, the store's script |
+| `HEAD /health/live` and `HEAD /api/health` on the Render address, `HEAD /api/health` through Vercel | HTTP 200 |
+| The store's address in Chromium, service awake | the store was shown 1.0 to 1.6 s after `/orbitcrate/`, `/orbitcrate` and `/orbitcrate/?ref=console#plans` were opened, at the address `/orbitcrate/` with the query and the anchor kept. "Back" led to the page before. The same at phone width. No browser error |
+| The store's address in Chromium, after the service had been left alone for 18 minutes | **The start page was shown, and the store did not open.** For four minutes the page said "Starting the demonstration server" and counted, then "The store is not answering" with "Try again". The visitor never saw a page of the hosting platform |
+
+Vercel applies the rules as intended, and the platform's error page is gone from the store's address.
+But the wait did not end.
+
+### A second cause: a visit through Vercel does not start the service
+
+In that last check Render answered every one of the 73 status requests itself, with HTTP 502 and the
+routing note `no-deploy`, and the service stayed asleep. It started 40 seconds later, when the Render
+address was asked directly. A second recording separated the kinds of request. Both are in
+[`evidence/hosted-wake-up-through-vercel.txt`](evidence/hosted-wake-up-through-vercel.txt).
+
+| Recording (UTC) | Requests through Vercel while the service slept | Did the service start? | First request to the Render address |
+|---|---|---|---|
+| 17:00 | 73 background requests in 243 s | no | sent with curl 40 s after the page had given up; the store answered about 31 s later |
+| 17:27 | 23 background requests and one page navigation in 77 s, and one more at the moment of the direct request | no | sent by the browser, without reading the answer, 76.5 s after the start; the store answered 31.6 s later |
+
+So a request that Vercel forwards did not start the sleeping service, and a request to the Render
+address did. This explains the owner's report better than the first conclusion: the site did not need
+a minute, it stayed on its waiting messages until something asked the Render address. During the
+earlier checks that something was the check itself.
+
+Not established: why Render answers the two kinds of request differently (no statement about it was
+found in its documentation), and whether it always does. These are two recordings from one day.
+
+### What was changed next: the pages ask the server directly
+
+- **The start page** sends, while the store does not answer and at most every 20 seconds, one request
+  to `/wake` and does not read the answer (`frontend/public/orbitcrate-start.js`).
+- **The console** does the same whenever one of its requests gets no answer from the API itself: no
+  answer at all, or HTTP 502, 503 or 504 with something other than the API's own JSON
+  (`frontend/src/api/wake.js`, called from `frontend/src/api/client.js`). This covers the sign-in page,
+  the product page and a console that was left open.
+- **Vercel redirects `/wake`** to `/health/live` on the Render address, so that the browser asks that
+  address itself, and the content policy names the Render address in `connect-src` for this request
+  (`frontend/vercel.json`). The redirect keeps the Render address in that one file.
+- **Caddy answers `/wake`** with HTTP 204 in the Compose stack, where nothing sleeps
+  (`reverse-proxy/Caddyfile`).
+
+### Checks of the second change
+
+| Check | Result |
+|---|---|
+| Frontend tests | **50 passed**, 9 of them new: 2 for the start page (it asks the server's own address while the store does not answer and again after 20 seconds; a failed request of that kind does not disturb the wait), 1 for the redirect and the content policy, and 6 for the console (which answers count as "the API is not up", one request in 20 seconds, sent on a platform page or on no answer, not sent on the API's own errors). The earlier tests now also check that a store that answers at once is not asked a second time |
+| Frontend production build | succeeded |
+| On the live deployment: one request from a blank page in Chromium to `/health/live` on the Render address, answer not read | reached the service (HTTP 200); in the 17:27 recording it started the sleeping service. From a page on the Vercel address the same request was refused by the content policy deployed at that time, which is why `connect-src` now names the Render address |
+| The pages in Chromium against a model of what was recorded: the stand-in for the static host now also applies the redirects, and behind it the server's own address stays "asleep", answers forwarded requests with a 502 page without starting, and starts the API and then the store when it is asked directly | **12 of 12** checks |
+| ... the start page with the request to `/wake` blocked, which is the version deployed above | the server stayed asleep and the page kept waiting (5 forwarded requests answered 502 in 14 s) |
+| ... the start page as changed, opened from a blank page | it asked the server's own address through the redirect within 0.1 s; the server started; the store opened by itself 5.0 s after the page was opened, at `/orbitcrate/` with the query and the anchor |
+| ... with the server awake | the product page and the store opened without a request to the server's own address; "Back" from the store led to the page before |
+| ... the sign-in page and the product page, each with the server asleep again | both asked the server's own address and continued by themselves ("Sign in" available, "Demonstration environment is ready") 4.7 s after they were opened |
+| ... the browser's console | no content-policy violation and no script error |
+| The Compose stack rebuilt with this change | `/wake` answered HTTP 204; `sh scripts/verify_stack.sh` **25 of 25**; `cd tests/e2e && npx playwright test` **16 passed** |
+
 Not verified in this section:
 
-* **Vercel's handling of the new rules.** The stand-in follows Vercel's documented order (existing files,
-  then the rewrites in the order written). Until the rules have been deployed and the store's address has
-  been opened once against a sleeping service, the behaviour on Vercel itself is UNVERIFIED.
+* **The second change on the live deployment.** It was not deployed when this was written. The model
+  follows what was recorded, but it is a model: whether Vercel's redirect and the changed content policy
+  let the browser's request through, and whether that request starts the service as it did from a blank
+  page, is UNVERIFIED until the store's address has been opened once against a sleeping service after
+  the deployment.
+* **Why Render does not start the service for forwarded requests,** and whether that is always so.
 * **An uptime monitor.** None is set up by this repository. Whether one keeps this service awake, and
   whether the 750 free instance hours of the Render workspace are enough for it, was not tried.
