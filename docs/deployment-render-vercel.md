@@ -12,7 +12,7 @@ Related: [Configuration](configuration.md) · [Security](security.md) · [Verifi
 flowchart LR
     browser["Browser"]
     subgraph vercel["Vercel (free Hobby plan)"]
-        spa["React application (static files)"]
+        spa["React application and the store's start page (static files)"]
         proxy["Rewrites: /api/* and /orbitcrate/* are forwarded"]
     end
     subgraph render["Render (free plan)"]
@@ -49,7 +49,8 @@ the frontend runs in a single web service:
 | [`render.yaml`](../render.yaml) | Render Blueprint: the web service, the database and every setting |
 | [`deploy/render/Dockerfile`](../deploy/render/Dockerfile) | The single-container image |
 | [`deploy/render/launcher.py`](../deploy/render/launcher.py) | Starts and supervises the five processes inside it |
-| [`frontend/vercel.json`](../frontend/vercel.json) | Vercel build settings, the `/api` and `/orbitcrate` rewrites and the security headers |
+| [`frontend/vercel.json`](../frontend/vercel.json) | Vercel build settings, the `/api` and `/orbitcrate` rewrites, the rule that serves the store's start page, and the security headers |
+| [`frontend/public/orbitcrate-start.html`](../frontend/public/orbitcrate-start.html), [`orbitcrate-start.js`](../frontend/public/orbitcrate-start.js) | The store's start page: what a visitor sees at `/orbitcrate/` while the Render service is still starting |
 
 Inside the container the components are still separated as far as one container allows:
 
@@ -78,11 +79,11 @@ with `127.0.0.1`.
 
 | Fact (from the providers' documentation, read on 2026-11-23) | Consequence |
 |---|---|
-| A free Render web service is stopped after 15 minutes without incoming requests and takes about a minute to start again | The first visit after a pause is slow. The sign-in page says "The server is starting" and continues by itself. Open the site a few minutes before a demonstration |
+| A free Render web service is stopped after 15 minutes without incoming requests and takes about a minute to start again. Requests made inside the container (the synthetic load, the Prometheus scrapes) do not count | The first visit after a pause is slow. The product page and the sign-in page say that the server is starting, the store's address shows a start page, and all three continue by themselves (see "While the service is starting"). To avoid the pause altogether, see "Keeping the service awake" |
 | When it stops, its files are lost | Prometheus history, the Alertmanager state, an injected fault and any change to the sample configuration are gone after a pause. Incidents, findings, remediation requests, users and the audit trail are in PostgreSQL and stay |
 | A free Render PostgreSQL database expires 30 days after it was created; 14 days later it is deleted. Only one free database per workspace | Plan the demonstration inside those 30 days, or see "When the database expires". If your Render workspace already has a free database, the Blueprint cannot create a second one |
 | A free web service has 0.1 CPU and 512 MB | Sign-in takes several seconds (password hashing). The `cpu` and `memory` faults are switched off because the whole container would stall or be killed; `outage`, `errors` and `latency` work |
-| 750 free instance hours per workspace and month, shared by all free services | Enough for one service that is always awake; less if other free services run in the same workspace |
+| 750 free instance hours per workspace and month, shared by all free services. When they are used up, Render suspends every free web service of the workspace until the next month | Enough for one service that is always awake (a month has at most 744 hours); not enough if other free services run in the same workspace |
 | Vercel waits up to 120 seconds for the backend when it forwards a request | Long enough for the backend to wake up |
 
 Nothing here requires a payment method, and nothing in this repository enables billing. If a provider asks
@@ -121,9 +122,9 @@ region cannot be changed after creation, so edit `render.yaml` first if you want
 
 ### 2. Frontend on Vercel
 
-1. If the Render address is not `https://vigilops.onrender.com`, change the `destination` of the first
-   three rewrites in `frontend/vercel.json` (`/api`, and the two for `/orbitcrate`) to your address and
-   push the change.
+1. If the Render address is not `https://vigilops.onrender.com`, change the `destination` of the three
+   rewrites in `frontend/vercel.json` that point to it (`/api/:path*`, `/orbitcrate/open` and
+   `/orbitcrate/:path(.*)`) to your address and push the change.
 2. In Vercel choose **Add New**, **Project**, and import the `VigilOps` repository.
 3. Set **Root Directory** to `frontend`. The other settings come from `frontend/vercel.json` (build
    command `npm run build`, output directory `dist`). No environment variables are needed.
@@ -132,11 +133,16 @@ region cannot be changed after creation, so edit `render.yaml` first if you want
 The browser talks only to the Vercel address; Vercel forwards `/api/*` and `/orbitcrate/*` to Render. The
 frontend therefore needs no backend address at build time and the backend needs no CORS setting.
 
+One address below `/orbitcrate/` is not forwarded: the store's own address, `/orbitcrate/` (with or
+without the trailing slash). Vercel answers it itself with the store's start page; the next section says
+why.
+
 ### 3. Check
 
 - Open the address without signing in: the product page appears and says whether the demonstration
   environment is ready (a sleeping Render service needs about a minute).
-- Open `/orbitcrate/`: the store shows its plans and "Store operational".
+- Open `/orbitcrate/`: the store shows its plans and "Store operational". If the service was asleep, the
+  start page says "Starting the demonstration server" first and opens the store by itself.
 - Sign in as Administrator; the Overview shows both monitored resources as UP after a few seconds.
 - Settings, tab Demo controls: `outage`, `errors` and `latency` are offered.
 - Run the two demonstrations from the [demonstration script](college/demo-script.md).
@@ -146,6 +152,60 @@ frontend therefore needs no backend address at build time and the backend needs 
   ```bash
   python scripts/run_e2e_demos.py --base-url https://<your-app>.vercel.app --no-save
   ```
+
+## While the service is starting
+
+A sleeping service, a redeploy and a restart by Render all look the same from outside: for a while
+nothing answers behind the Render address, and Render answers in its place with its own page ("502 Bad
+Gateway", or a loading page). Vercel serves static files and never sleeps, so every page a visitor can
+open first is answered by Vercel and waits there:
+
+| Address | What the visitor sees while the service starts |
+|---|---|
+| `/` (product page) | The page, with "Demonstration environment is starting" under the buttons |
+| `/login` | "The server is starting"; the Sign in button is enabled as soon as the API answers |
+| `/orbitcrate/` (the store) | The store's start page: "Starting the demonstration server", a count of the seconds waited, and the store itself as soon as it answers |
+
+The start page ([`frontend/public/orbitcrate-start.html`](../frontend/public/orbitcrate-start.html)) asks
+`/orbitcrate/api/status` every three seconds. An answer from the store itself, which is a JSON object
+with a `status` field, opens the store at `/orbitcrate/open`; Vercel forwards that address to the store's
+page, and the store then shows its own address `/orbitcrate/` again. A simulated outage counts as an
+answer, because the store then shows its own outage page, which is what a demonstration wants to show.
+Render's page, a gateway error or no answer at all means "not up yet". After four minutes the page stops
+asking and offers "Try again". When the service is awake the start page costs one short extra request
+and is replaced by the store before it has shown anything.
+
+Inside the container the API opens the public port first and the store starts a few seconds later. In
+that time the store's address on the Render address itself (`https://<service>.onrender.com/orbitcrate/`)
+answers HTTP 502 with a page that asks again every 5 seconds and turns into the store by itself.
+
+Addresses below the store's (`/orbitcrate/open`, `/orbitcrate/static/...`, `/orbitcrate/api/...`) are
+forwarded as they are. Someone who opens or reloads `/orbitcrate/open` directly while the service is
+down therefore sees Render's page; the store never leaves that address in the address bar.
+
+## Keeping the service awake
+
+The pause can be avoided: a request from outside at least every 15 minutes keeps a free Render service
+running. Any free uptime monitor does this. It is not part of this repository; the account is yours.
+
+| Setting of the monitor | Value |
+|---|---|
+| Type | HTTP(S) |
+| Address | `https://<service>.onrender.com/api/health` (the Render address, so that Vercel's allowance is not used) |
+| Interval | 5 minutes |
+| Expected answer | HTTP 200. The address answers GET with `{"status":"healthy"}` and HEAD with the same status and no body |
+
+What to know before switching it on:
+
+- An always-awake service uses up to 744 of the 750 free instance hours of the month. If another free
+  web service runs in the same Render workspace, the hours run out before the month ends and Render
+  suspends all of them until the next month.
+- `/api/health` answers HTTP 503 when the database cannot be reached. The monitor's alert is then also
+  the notice that the free database has expired.
+- A monitor does not prevent the pauses of a redeploy or of a restart by Render. Those are covered by
+  the waiting pages above.
+- Monitoring history, an injected fault and a change to the sample configuration now survive for as
+  long as the container runs, instead of being lost every 15 idle minutes.
 
 ## Updating
 
@@ -188,7 +248,8 @@ Use it to show the project. Do not point it at a real workload.
 |---|---|
 | The deploy fails and the log says a `BOOTSTRAP_..._PASSWORD` does not meet the password policy | Change the value under Environment (10 or more characters, upper case, lower case, a digit) and deploy again |
 | The Blueprint cannot create the database | The workspace already has a free database. Delete the old one, or remove the `databases` block from `render.yaml` and set `DATABASE_URL` yourself |
-| The site shows "The server is starting" for about a minute | The service was asleep. This is expected on the free plan |
+| The site shows "The server is starting", or the store shows "Starting the demonstration server", for about a minute | The service was asleep. This is expected on the free plan; see "Keeping the service awake" to avoid it |
+| Render's "502 Bad Gateway" page appears at `/orbitcrate/open` | That address was opened or reloaded directly while the service was down. Open `/orbitcrate/` instead: it waits and opens the store |
 | "The server is not answering" after three minutes | Open the service in the Render Dashboard: is it Live, did the last deploy fail, has the month's free hours run out? |
 | Sign-in works on the Render address but the Vercel site cannot reach the API | The `destination` in `frontend/vercel.json` does not match the Render address, or Root Directory is not `frontend` |
 | An incident stays OPEN after a pause | The fault disappeared with the restart and Alertmanager's memory of the alert with it, so no "resolved" notification arrives. Resolve the incident manually; the platform checks with Prometheus that the alert is no longer firing |
