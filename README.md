@@ -2,8 +2,6 @@
 
 [![VigilOps CI](https://github.com/Gangadhar017/VigilOps/actions/workflows/ci.yml/badge.svg)](https://github.com/Gangadhar017/VigilOps/actions/workflows/ci.yml)
 
-B.Tech CSE (Cloud Computing and Virtualization) major project, built by a team of four students.
-
 ## Project introduction
 
 VigilOps is a centralized cloud operations and security management platform that runs as one
